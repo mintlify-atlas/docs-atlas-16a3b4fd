@@ -1,0 +1,165 @@
+{
+  "projectType": "framework",
+  "projectName": "Vision Agents",
+  "projectDescription": "Open-source framework for building real-time video and voice AI agents with ultra-low latency",
+  "theme": "aspen",
+  "primaryColor": "#3B82F6",
+  "lightColor": "#60A5FA",
+  "darkColor": "#2563EB",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": [
+              "introduction",
+              "quickstart",
+              "installation"
+            ]
+          },
+          {
+            "group": "Core Concepts",
+            "pages": [
+              "concepts/agents",
+              "concepts/edge-networks",
+              "concepts/processors",
+              "concepts/realtime-vs-interval",
+              "concepts/turn-detection",
+              "concepts/function-calling"
+            ]
+          },
+          {
+            "group": "Building Agents",
+            "pages": [
+              "guides/voice-agents",
+              "guides/video-agents",
+              "guides/custom-processors",
+              "guides/rag-integration",
+              "guides/deployment",
+              "guides/observability"
+            ]
+          },
+          {
+            "group": "Integrations",
+            "pages": [
+              "integrations/overview",
+              "integrations/gemini",
+              "integrations/openai",
+              "integrations/anthropic",
+              "integrations/aws-bedrock",
+              "integrations/deepgram",
+              "integrations/elevenlabs",
+              "integrations/ultralytics",
+              "integrations/roboflow",
+              "integrations/moondream",
+              "integrations/twilio",
+              "integrations/turbopuffer"
+            ]
+          },
+          {
+            "group": "Examples",
+            "pages": [
+              "examples/simple-agent",
+              "examples/golf-coach",
+              "examples/security-camera",
+              "examples/phone-rag",
+              "examples/football-commentator"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "Core",
+            "pages": [
+              "api/agent",
+              "api/agent-launcher",
+              "api/runner",
+              "api/user"
+            ]
+          },
+          {
+            "group": "LLM Components",
+            "pages": [
+              "api/llm",
+              "api/realtime",
+              "api/stt",
+              "api/tts"
+            ]
+          },
+          {
+            "group": "Processors",
+            "pages": [
+              "api/processor",
+              "api/video-processor",
+              "api/audio-processor"
+            ]
+          },
+          {
+            "group": "Edge & Transport",
+            "pages": [
+              "api/edge",
+              "api/call",
+              "api/connection"
+            ]
+          },
+          {
+            "group": "Session Management",
+            "pages": [
+              "api/session-registry",
+              "api/session-store"
+            ]
+          },
+          {
+            "group": "Events",
+            "pages": [
+              "api/event-manager",
+              "api/agent-events",
+              "api/llm-events"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "Real-time video and voice AI with WebRTC support",
+    "Ultra-low latency (<30ms) using Stream's edge network",
+    "Plugin architecture with 37+ integrations (OpenAI, Gemini, AWS, etc.)",
+    "Flexible processor pipeline for custom video/audio processing",
+    "Native support for YOLO, Roboflow, and custom vision models",
+    "Built-in turn detection, VAD, and speech-to-speech pipelines",
+    "Function calling and tool use during conversations",
+    "Session management with in-memory and Redis stores",
+    "Production-ready HTTP API deployment",
+    "Comprehensive observability with metrics and telemetry"
+  ],
+  "publicApiSurface": [
+    "Agent",
+    "AgentLauncher",
+    "Runner",
+    "User",
+    "Edge",
+    "Call",
+    "Processor",
+    "VideoProcessor",
+    "AudioProcessor",
+    "LLM",
+    "Realtime",
+    "STT",
+    "TTS",
+    "TurnDetector",
+    "SessionRegistry",
+    "SessionKVStore",
+    "InMemorySessionKVStore",
+    "RedisSessionKVStore",
+    "EventManager",
+    "Instructions",
+    "MCPManager",
+    "ServeOptions"
+  ]
+}
