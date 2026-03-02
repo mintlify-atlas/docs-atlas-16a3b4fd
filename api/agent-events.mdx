@@ -1,0 +1,327 @@
+---
+title: "Agent Events"
+description: "Events emitted by agent lifecycle and speech synthesis operations"
+---
+
+## Overview
+
+Agent events track the lifecycle of agents and their speech synthesis operations. These events allow you to monitor when agents initialize, speak, and complete their operations.
+
+## Event Types
+
+### AgentInitEvent
+
+Event emitted when Agent class is initialized.
+
+```python
+@dataclass
+class AgentInitEvent(BaseEvent):
+    type: str = "agent.init"
+```
+
+#### Example
+
+```python
+from vision_agents.core.agents.events import AgentInitEvent
+
+@manager.subscribe
+async def handle_agent_init(event: AgentInitEvent):
+    print(f"Agent initialized: {event.event_id}")
+```
+
+### AgentFinishEvent
+
+Event emitted when `agent.finish()` call ends.
+
+```python
+@dataclass
+class AgentFinishEvent(BaseEvent):
+    type: str = "agent.finish"
+```
+
+#### Example
+
+```python
+from vision_agents.core.agents.events import AgentFinishEvent
+
+@manager.subscribe
+async def handle_agent_finish(event: AgentFinishEvent):
+    print(f"Agent finished: {event.event_id}")
+```
+
+### AgentSayEvent
+
+Event emitted when the agent wants to say something.
+
+```python
+@dataclass
+class AgentSayEvent(PluginBaseEvent):
+    type: str = "agent.say"
+    text: str
+    metadata: Optional[Dict[str, Any]] = None
+```
+
+#### Fields
+
+<ParamField path="text" type="str" required>
+  The text the agent wants to say. Cannot be empty.
+</ParamField>
+
+<ParamField path="metadata" type="Dict[str, Any]" default="None">
+  Optional metadata associated with the speech.
+</ParamField>
+
+<ParamField path="plugin_name" type="str">
+  Name of the plugin emitting this event (inherited from PluginBaseEvent).
+</ParamField>
+
+#### Example
+
+```python
+from vision_agents.core.agents.events import AgentSayEvent
+
+# Send event
+manager.send(AgentSayEvent(
+    plugin_name="agent",
+    text="Hello, how can I help you today?",
+    metadata={"priority": "high", "context": "greeting"}
+))
+
+# Subscribe to event
+@manager.subscribe
+async def handle_agent_say(event: AgentSayEvent):
+    print(f"Agent wants to say: {event.text}")
+    if event.metadata:
+        print(f"Metadata: {event.metadata}")
+```
+
+### AgentSayStartedEvent
+
+Event emitted when agent speech synthesis starts.
+
+```python
+@dataclass
+class AgentSayStartedEvent(PluginBaseEvent):
+    type: str = "agent.say_started"
+    text: str = ""
+    synthesis_id: Optional[str] = None
+```
+
+#### Fields
+
+<ParamField path="text" type="str" default="">
+  The text being synthesized.
+</ParamField>
+
+<ParamField path="synthesis_id" type="str" default="None">
+  Unique identifier for this synthesis operation.
+</ParamField>
+
+#### Example
+
+```python
+from vision_agents.core.agents.events import AgentSayStartedEvent
+
+@manager.subscribe
+async def handle_say_started(event: AgentSayStartedEvent):
+    print(f"Started synthesizing: {event.text}")
+    print(f"Synthesis ID: {event.synthesis_id}")
+```
+
+### AgentSayCompletedEvent
+
+Event emitted when agent speech synthesis completes.
+
+```python
+@dataclass
+class AgentSayCompletedEvent(PluginBaseEvent):
+    type: str = "agent.say_completed"
+    text: str = ""
+    synthesis_id: Optional[str] = None
+    duration_ms: Optional[float] = None
+```
+
+#### Fields
+
+<ParamField path="text" type="str" default="">
+  The text that was synthesized.
+</ParamField>
+
+<ParamField path="synthesis_id" type="str" default="None">
+  Unique identifier for this synthesis operation.
+</ParamField>
+
+<ParamField path="duration_ms" type="float" default="None">
+  Duration of the synthesis operation in milliseconds.
+</ParamField>
+
+#### Example
+
+```python
+from vision_agents.core.agents.events import AgentSayCompletedEvent
+
+@manager.subscribe
+async def handle_say_completed(event: AgentSayCompletedEvent):
+    print(f"Completed synthesizing: {event.text}")
+    print(f"Synthesis ID: {event.synthesis_id}")
+    print(f"Duration: {event.duration_ms}ms")
+```
+
+### AgentSayErrorEvent
+
+Event emitted when agent speech synthesis encounters an error.
+
+```python
+@dataclass
+class AgentSayErrorEvent(PluginBaseEvent):
+    type: str = "agent.say_error"
+    text: str = ""
+    error: Optional[Exception] = None
+```
+
+#### Fields
+
+<ParamField path="text" type="str" default="">
+  The text that was being synthesized when the error occurred.
+</ParamField>
+
+<ParamField path="error" type="Exception" default="None">
+  The exception that was raised.
+</ParamField>
+
+#### Properties
+
+<ResponseField name="error_message" type="str">
+  Human-readable error message extracted from the exception.
+</ResponseField>
+
+#### Example
+
+```python
+from vision_agents.core.agents.events import AgentSayErrorEvent
+
+@manager.subscribe
+async def handle_say_error(event: AgentSayErrorEvent):
+    print(f"Error synthesizing: {event.text}")
+    print(f"Error: {event.error_message}")
+    if event.error:
+        print(f"Exception type: {type(event.error).__name__}")
+```
+
+## Complete Example
+
+Here's a complete example demonstrating agent event subscription and handling:
+
+```python
+from vision_agents.core.events.manager import EventManager
+from vision_agents.core.agents.events import (
+    AgentInitEvent,
+    AgentFinishEvent,
+    AgentSayEvent,
+    AgentSayStartedEvent,
+    AgentSayCompletedEvent,
+    AgentSayErrorEvent
+)
+
+# Create event manager
+manager = EventManager()
+
+# Register events
+manager.register(
+    AgentInitEvent,
+    AgentFinishEvent,
+    AgentSayEvent,
+    AgentSayStartedEvent,
+    AgentSayCompletedEvent,
+    AgentSayErrorEvent
+)
+
+# Subscribe to lifecycle events
+@manager.subscribe
+async def handle_lifecycle(event: AgentInitEvent | AgentFinishEvent):
+    print(f"Agent lifecycle: {event.type}")
+
+# Subscribe to speech request
+@manager.subscribe
+async def handle_say(event: AgentSayEvent):
+    print(f"Agent says: {event.text}")
+    if event.metadata:
+        print(f"Context: {event.metadata}")
+
+# Track speech synthesis
+synthesis_times = {}
+
+@manager.subscribe
+async def track_synthesis_start(event: AgentSayStartedEvent):
+    import time
+    synthesis_times[event.synthesis_id] = time.time()
+    print(f"Started synthesis {event.synthesis_id}: {event.text}")
+
+@manager.subscribe
+async def track_synthesis_complete(event: AgentSayCompletedEvent):
+    print(f"Completed synthesis {event.synthesis_id} in {event.duration_ms}ms")
+
+@manager.subscribe
+async def handle_synthesis_error(event: AgentSayErrorEvent):
+    print(f"Synthesis error for '{event.text}': {event.error_message}")
+
+# Send events
+manager.send(AgentInitEvent())
+
+manager.send(AgentSayEvent(
+    plugin_name="my_agent",
+    text="Hello, how can I help you?",
+    metadata={"intent": "greeting"}
+))
+
+manager.send(AgentSayStartedEvent(
+    plugin_name="my_agent",
+    text="Hello, how can I help you?",
+    synthesis_id="syn-123"
+))
+
+manager.send(AgentSayCompletedEvent(
+    plugin_name="my_agent",
+    text="Hello, how can I help you?",
+    synthesis_id="syn-123",
+    duration_ms=245.7
+))
+
+manager.send(AgentFinishEvent())
+
+# Wait for processing
+await manager.wait()
+```
+
+## Speech Synthesis Lifecycle
+
+The typical flow of speech synthesis events:
+
+1. **AgentSayEvent** - Agent decides to speak
+2. **AgentSayStartedEvent** - Synthesis begins
+3. **AgentSayCompletedEvent** - Synthesis completes successfully
+   OR
+   **AgentSayErrorEvent** - Synthesis fails with an error
+
+```python
+# Track complete lifecycle
+@manager.subscribe
+async def log_say_request(event: AgentSayEvent):
+    print(f"📝 Request: {event.text}")
+
+@manager.subscribe
+async def log_say_started(event: AgentSayStartedEvent):
+    print(f"🎤 Started: {event.synthesis_id}")
+
+@manager.subscribe
+async def log_say_completed(event: AgentSayCompletedEvent):
+    print(f"✅ Completed: {event.synthesis_id} ({event.duration_ms}ms)")
+
+@manager.subscribe
+async def log_say_error(event: AgentSayErrorEvent):
+    print(f"❌ Error: {event.error_message}")
+```
+
+## Location
+
+`vision_agents/core/agents/events.py:1-64`

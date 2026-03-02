@@ -1,0 +1,214 @@
+---
+title: Simple Agent Example
+description: Build a basic video AI agent with voice capabilities
+---
+
+This example demonstrates how to build a basic video AI agent using Vision Agents. The agent can have conversations with users through video and voice, responding naturally to speech input.
+
+## What You'll Learn
+
+- Setting up a basic voice AI agent
+- Configuring speech-to-text (STT), text-to-speech (TTS), and LLM components
+- Creating and joining video calls
+- Using turn detection for natural conversations
+- Registering custom functions for the LLM
+
+## Features
+
+- Listens to user speech and converts it to text
+- Processes conversations using an LLM (Large Language Model)
+- Responds with natural-sounding speech
+- Runs on Stream's low-latency edge network
+- Includes weather lookup function example
+
+## Prerequisites
+
+Before running this example, you'll need API keys for:
+
+- [Gemini](https://ai.google.dev/) (for the LLM)
+- [ElevenLabs](https://elevenlabs.io/) (for text-to-speech)
+- [Deepgram](https://deepgram.com/) (for speech-to-text)
+- [Stream](https://getstream.io/) (for video/audio infrastructure)
+
+## Setup
+
+<Steps>
+  <Step title="Navigate to the example directory">
+    ```bash
+    cd examples/01_simple_agent_example
+    ```
+  </Step>
+
+  <Step title="Install dependencies">
+    ```bash
+    uv sync
+    ```
+  </Step>
+
+  <Step title="Configure environment variables">
+    Create a `.env` file with your API keys:
+    ```bash
+    GOOGLE_API_KEY=your_gemini_key
+    ELEVENLABS_API_KEY=your_11labs_key
+    DEEPGRAM_API_KEY=your_deepgram_key
+    STREAM_API_KEY=your_stream_key
+    STREAM_API_SECRET=your_stream_secret
+    ```
+  </Step>
+
+  <Step title="Run the example">
+    ```bash
+    uv run simple_agent_example.py run
+    ```
+    
+    The agent will:
+    1. Create a video call
+    2. Open a demo UI in your browser
+    3. Join the call and start listening
+    4. Respond to your voice input
+  </Step>
+</Steps>
+
+## Complete Code
+
+```python
+import logging
+from typing import Any, Dict
+
+from dotenv import load_dotenv
+from vision_agents.core import Agent, AgentLauncher, Runner, User
+from vision_agents.core.utils.examples import get_weather_by_location
+from vision_agents.plugins import deepgram, elevenlabs, gemini, getstream
+
+logger = logging.getLogger(__name__)
+
+load_dotenv()
+
+INSTRUCTIONS = "You're a voice AI assistant. Keep responses short and conversational. Don't use special characters or formatting. Be friendly and helpful."
+
+
+def setup_llm(model: str = "gemini-3-flash-preview") -> gemini.LLM:
+    llm = gemini.LLM(model)
+
+    @llm.register_function(description="Get current weather for a location")
+    async def get_weather(location: str) -> Dict[str, Any]:
+        return await get_weather_by_location(location)
+
+    return llm
+
+
+async def create_agent(**kwargs) -> Agent:
+    llm = setup_llm()
+
+    agent = Agent(
+        edge=getstream.Edge(),
+        agent_user=User(name="My happy AI friend", id="agent"),
+        instructions=INSTRUCTIONS,
+        processors=[],
+        llm=llm,
+        tts=elevenlabs.TTS(model_id="eleven_flash_v2_5"),
+        stt=deepgram.STT(eager_turn_detection=True),
+    )
+
+    return agent
+
+
+async def join_call(agent: Agent, call_type: str, call_id: str, **kwargs) -> None:
+    call = await agent.create_call(call_type, call_id)
+
+    async with agent.join(call):
+        await agent.simple_response("tell me something interesting in a short sentence")
+        await agent.finish()
+
+
+if __name__ == "__main__":
+    Runner(AgentLauncher(create_agent=create_agent, join_call=join_call)).cli()
+```
+
+## Code Walkthrough
+
+### Agent Components
+
+The agent is built with several key components:
+
+- **edge**: Handles low-latency audio/video transport via Stream's edge network
+- **agent_user**: Sets the agent's name and ID
+- **instructions**: Tells the agent how to behave
+- **llm**: The language model that powers the conversation (Gemini)
+- **tts**: Converts agent responses to speech (ElevenLabs)
+- **stt**: Converts user speech to text (Deepgram with eager turn detection)
+- **processors**: Optional video/audio processing pipeline (empty in this example)
+
+### Registering Custom Functions
+
+You can extend the agent's capabilities by registering custom functions:
+
+```python
+@llm.register_function(description="Get current weather for a location")
+async def get_weather(location: str) -> Dict[str, Any]:
+    return await get_weather_by_location(location)
+```
+
+The LLM can call this function when users ask about weather.
+
+### Turn Detection
+
+This example uses Deepgram's eager turn detection (`eager_turn_detection=True`) for lower latency. This means the agent will respond more quickly when it detects you've stopped speaking, though it may use slightly more tokens.
+
+## Alternative: Using Realtime LLMs
+
+You can simplify the setup by using a realtime LLM like OpenAI Realtime or Gemini Live. These models handle speech-to-text and text-to-speech internally:
+
+```python
+async def create_agent(**kwargs) -> Agent:
+    agent = Agent(
+        edge=getstream.Edge(),
+        agent_user=User(name="My happy AI friend", id="agent"),
+        instructions=INSTRUCTIONS,
+        llm=openai.Realtime()  # or gemini.Realtime()
+    )
+    return agent
+    # No need for separate tts, stt components
+```
+
+## Customization Ideas
+
+### Change the Instructions
+
+Edit the `INSTRUCTIONS` parameter to change how your agent behaves:
+
+```python
+INSTRUCTIONS = "You're a friendly chef. Help users with cooking questions and recipes. Keep responses concise."
+```
+
+### Use Different Models
+
+Swap out any component:
+
+```python
+llm=gemini.LLM("gemini-2.5-flash-lite"),  # Different Gemini model
+tts=kokoro.TTS(),  # Different TTS provider
+stt=deepgram.STT(eager_turn_detection=False),  # Standard turn detection
+```
+
+### Add Video Processing
+
+Add processors to analyze video (see the [Golf Coach Example](/examples/golf-coach) for details):
+
+```python
+processors=[ultralytics.YOLOProcessor(model_path="yolo11n.pt")]
+```
+
+## What Happens When You Run It
+
+1. The agent creates a video call with a unique ID
+2. A demo UI opens in your browser automatically
+3. The agent joins the call and greets you
+4. You can speak naturally, and the agent will respond
+5. Try asking about the weather to see the custom function in action
+
+## Next Steps
+
+- Explore the [Golf Coach Example](/examples/golf-coach) to learn about video processing
+- Check out the [Phone RAG Example](/examples/phone-rag) for building phone agents
+- Read the [Building Voice AI Apps](/guides/voice-agents) guide

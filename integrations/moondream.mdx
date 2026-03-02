@@ -1,0 +1,324 @@
+---
+title: "Moondream"
+description: "Zero-shot object detection and visual question answering with Moondream 3"
+---
+
+The Moondream plugin provides vision capabilities including zero-shot object detection, visual question answering (VQA), and image captioning.
+
+## Installation
+
+```bash
+uv add vision-agents[moondream]
+```
+
+## Authentication
+
+For cloud components, set your API key:
+
+```bash
+export MOONDREAM_API_KEY=your_moondream_api_key
+```
+
+For local components, authenticate with HuggingFace:
+
+1. Request access at https://huggingface.co/moondream/moondream3-preview
+2. Set token: `export HF_TOKEN=your_token_here` or run `huggingface-cli login`
+
+## Components
+
+### CloudDetectionProcessor
+
+Zero-shot object detection using Moondream's cloud API:
+
+```python
+from vision_agents.plugins import moondream
+from vision_agents.core import Agent
+
+processor = moondream.CloudDetectionProcessor(
+    api_key="your-api-key",
+    detect_objects="person",
+    conf_threshold=0.3,
+    fps=30
+)
+
+agent = Agent(
+    processors=[processor],
+    llm=your_llm,
+    # ... other config
+)
+```
+
+<ParamField path="api_key" type="string">
+  Moondream Cloud API key. Defaults to `MOONDREAM_API_KEY` environment variable
+</ParamField>
+
+<ParamField path="detect_objects" type="string | list[string]" default="person">
+  Object(s) to detect using zero-shot detection. Can be any object name like `"person"`, `"car"`, `"basketball"`, or `["person", "car", "dog"]`
+</ParamField>
+
+<ParamField path="conf_threshold" type="float" default="0.3">
+  Confidence threshold for detections (0.0 - 1.0)
+</ParamField>
+
+<ParamField path="fps" type="int" default="30">
+  Frame processing rate
+</ParamField>
+
+<ParamField path="interval" type="int" default="0">
+  Processing interval in seconds
+</ParamField>
+
+<Note>
+The Moondream Cloud API has a 2 RPS (requests per second) rate limit by default. Contact Moondream to request a higher limit.
+</Note>
+
+### LocalDetectionProcessor
+
+Run Moondream 3 locally for zero-shot detection:
+
+```python
+from vision_agents.plugins import moondream
+
+processor = moondream.LocalDetectionProcessor(
+    detect_objects=["person", "car", "dog"],
+    conf_threshold=0.3,
+    force_cpu=False,  # Auto-detects CUDA, MPS, or CPU
+    fps=30
+)
+
+agent = Agent(
+    processors=[processor],
+    # ... other config
+)
+```
+
+<ParamField path="detect_objects" type="string | list[string]" default="person">
+  Object(s) to detect using zero-shot detection
+</ParamField>
+
+<ParamField path="conf_threshold" type="float" default="0.3">
+  Confidence threshold for detections
+</ParamField>
+
+<ParamField path="force_cpu" type="bool" default="False">
+  Force CPU usage even if CUDA/MPS is available. We recommend CUDA for best performance.
+</ParamField>
+
+<ParamField path="model_name" type="string" default="moondream/moondream3-preview">
+  HuggingFace model identifier
+</ParamField>
+
+<Warning>
+Local processing requires GPU (CUDA) for good performance. The model will be downloaded from HuggingFace on first use.
+</Warning>
+
+### CloudVLM
+
+Visual question answering and captioning using cloud API:
+
+```python
+import os
+from vision_agents.core import User, Agent
+from vision_agents.plugins import deepgram, getstream, elevenlabs, moondream
+
+llm = moondream.CloudVLM(
+    api_key=os.getenv("MOONDREAM_API_KEY"),
+    mode="vqa"  # or "caption"
+)
+
+agent = Agent(
+    edge=getstream.Edge(),
+    agent_user=User(name="Vision Agent", id="agent"),
+    llm=llm,
+    tts=elevenlabs.TTS(),
+    stt=deepgram.STT()
+)
+```
+
+<ParamField path="api_key" type="string">
+  Moondream Cloud API key. Defaults to `MOONDREAM_API_KEY` environment variable
+</ParamField>
+
+<ParamField path="mode" type="'vqa' | 'caption'" default="vqa">
+  - `"vqa"` - Visual question answering (answers questions about frames)
+  - `"caption"` - Image captioning (generates automatic descriptions)
+</ParamField>
+
+### LocalVLM
+
+Run VQA or captioning locally:
+
+```python
+from vision_agents.plugins import moondream
+
+llm = moondream.LocalVLM(
+    mode="vqa",
+    force_cpu=False
+)
+
+agent = Agent(
+    llm=llm,
+    # ... other config
+)
+```
+
+<ParamField path="mode" type="'vqa' | 'caption'" default="vqa">
+  VQA or caption mode
+</ParamField>
+
+<ParamField path="force_cpu" type="bool" default="False">
+  Force CPU usage. We recommend CUDA for best performance.
+</ParamField>
+
+## Usage Examples
+
+### Zero-Shot Detection (Cloud)
+
+```python
+from vision_agents.plugins import moondream
+
+# Detect multiple object types
+processor = moondream.CloudDetectionProcessor(
+    api_key="your-api-key",
+    detect_objects=["person", "car", "dog", "basketball"],
+    conf_threshold=0.3
+)
+```
+
+### VQA Agent (Cloud)
+
+```python
+from vision_agents.core import Agent, User
+from vision_agents.plugins import moondream, deepgram, elevenlabs, getstream
+
+llm = moondream.CloudVLM(
+    api_key="your-api-key",
+    mode="vqa"
+)
+
+agent = Agent(
+    edge=getstream.Edge(),
+    agent_user=User(name="Vision Assistant"),
+    instructions="Answer questions about what you see in the video.",
+    llm=llm,
+    stt=deepgram.STT(),
+    tts=elevenlabs.TTS()
+)
+```
+
+### Local Detection with GPU
+
+```python
+from vision_agents.plugins import moondream
+
+processor = moondream.LocalDetectionProcessor(
+    detect_objects=["person", "laptop", "phone"],
+    conf_threshold=0.3,
+    force_cpu=False,  # Use CUDA if available
+    fps=30
+)
+```
+
+### Caption Mode
+
+```python
+llm = moondream.CloudVLM(
+    api_key="your-api-key",
+    mode="caption"  # Automatic frame descriptions
+)
+
+agent = Agent(
+    llm=llm,
+    # ... other config
+)
+```
+
+## Cloud vs Local
+
+### Use Cloud When:
+
+- You want simple setup with no infrastructure
+- You don't have GPU resources
+- You're prototyping or testing
+- Your volume is low-to-medium (under rate limits)
+
+### Use Local When:
+
+- You need higher throughput
+- You have GPU infrastructure (CUDA recommended)
+- You want to avoid rate limits
+- You need offline processing
+- You're deploying to production
+
+## Video Publishing
+
+The processor automatically annotates video frames:
+
+```python
+processor = moondream.CloudDetectionProcessor(
+    detect_objects=["person", "car"],
+    conf_threshold=0.3
+)
+
+# Output track shows:
+# - Green bounding boxes around detected objects
+# - Labels with confidence scores
+# - Real-time annotation overlay
+```
+
+## MoondreamVideoTrack
+
+For advanced use cases, use the video track directly:
+
+```python
+from vision_agents.plugins.moondream import MoondreamVideoTrack
+
+track = MoondreamVideoTrack(
+    source_track=video_source,
+    detect_objects=["person"],
+    conf_threshold=0.3
+)
+```
+
+## Performance Recommendations
+
+### Cloud Performance
+
+- Default rate limit: 2 RPS
+- Adjust `fps` to stay under limits
+- Contact Moondream for higher limits
+
+### Local Performance
+
+- **Best**: CUDA GPU
+- **OK**: Apple Silicon (MPS) - auto-converts to CPU for compatibility
+- **Slowest**: CPU only
+
+```python
+# Auto-detect best device
+processor = moondream.LocalDetectionProcessor(
+    force_cpu=False  # Uses CUDA > MPS > CPU
+)
+```
+
+## Dependencies
+
+### Required
+
+- `vision-agents` - Core framework
+- `moondream` - Moondream SDK (for cloud components)
+- `numpy>=2.0.0`
+- `pillow>=10.0.0`
+- `opencv-python>=4.8.0`
+- `aiortc`
+
+### Local Components Only
+
+- `torch` - PyTorch
+- `transformers` - HuggingFace transformers
+
+## References
+
+- [Moondream Documentation](https://docs.moondream.ai/)
+- [HuggingFace Model](https://huggingface.co/moondream/moondream3-preview)
+- Plugin Source: `plugins/moondream/vision_agents/plugins/moondream/__init__.py`

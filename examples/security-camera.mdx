@@ -1,0 +1,428 @@
+---
+title: Security Camera Example
+description: Build a real-time security camera with face recognition and package theft detection
+---
+
+This example demonstrates a comprehensive security camera system with face recognition, package detection, and automated package theft response - including wanted poster generation and posting to X (Twitter).
+
+## What You'll Learn
+
+- Building custom video processors
+- Real-time face detection and recognition
+- Object tracking across frames
+- Event-driven workflows with async tasks
+- Video overlay composition
+- Creating visual outputs (wanted posters)
+- Integrating with external APIs (X/Twitter)
+
+## Features
+
+- **Real-time Face Detection**: Uses the `face_recognition` library for accurate detection
+- **Face Recognition**: Match faces against known individuals
+- **Named Face Registration**: Users can say "remember me as [name]"
+- **Package Detection**: YOLOv11-based detection for packages and boxes
+- **Package Theft Detection**: Identifies suspects when packages disappear
+- **Wanted Poster Generation**: Automatically creates posters for package thieves
+- **X Integration**: Posts wanted posters to Twitter/X automatically
+- **Visual Overlay**: Shows visitor count, package count, and thumbnail grid
+- **Activity Log**: Tracks arrivals, departures, and package events
+- **LLM Integration**: Ask questions like "What happened while I was away?"
+
+## Architecture
+
+The system uses a custom `SecurityCameraProcessor` that:
+
+1. Subscribes to the video stream via `VideoForwarder`
+2. Runs face detection at configurable intervals
+3. Runs YOLO model to detect packages
+4. Matches faces against known faces to identify individuals
+5. Tracks visitors and packages with timestamps
+6. Detects theft when packages disappear while someone is present
+7. Creates video overlay with thumbnails and statistics
+8. Publishes annotated video via `QueuedVideoTrack`
+
+## Prerequisites
+
+You'll need:
+
+- Python 3.13+
+- Webcam/camera access
+- [Stream](https://getstream.io/) account for video transport
+- [Gemini](https://ai.google.dev/) API key
+- [Deepgram](https://deepgram.com/) API key for STT
+- [ElevenLabs](https://elevenlabs.io/) API key for TTS
+- (Optional) [X Developer API](https://developer.x.com) credentials for posting posters
+- **YOLO Model**: You need to provide your own `weights_custom.pt` file (see below)
+
+## Setup
+
+<Steps>
+  <Step title="Navigate to the example directory">
+    ```bash
+    cd examples/05_security_camera_example
+    ```
+  </Step>
+
+  <Step title="Install dependencies">
+    ```bash
+    uv sync
+    ```
+  </Step>
+
+  <Step title="Configure environment variables">
+    Create a `.env` file:
+    ```bash
+    # Stream API
+    STREAM_API_KEY=your_stream_api_key
+    STREAM_API_SECRET=your_stream_api_secret
+    
+    # LLM
+    GOOGLE_API_KEY=your_gemini_api_key
+    
+    # STT
+    DEEPGRAM_API_KEY=your_deepgram_api_key
+    
+    # TTS
+    ELEVENLABS_API_KEY=your_elevenlabs_api_key
+    
+    # X/Twitter (optional)
+    X_API_KEY=your_x_api_key
+    X_API_SECRET=your_x_api_secret
+    X_ACCESS_TOKEN=your_x_access_token
+    X_ACCESS_TOKEN_SECRET=your_x_access_token_secret
+    ```
+  </Step>
+
+  <Step title="Provide a YOLO model">
+    This example requires a custom YOLOv11 model trained to detect packages. We don't distribute the model, so you need to provide your own.
+    
+    **Options:**
+    
+    - **Train your own**: Use [Roboflow](https://roboflow.com) to label a dataset and train a YOLOv11 model ([training guide](https://blog.roboflow.com/yolov11-how-to-train-custom-data/))
+    - **Find a pre-trained model**: Search [Roboflow Universe](https://universe.roboflow.com) for "package detection" datasets
+    
+    Place your model at `weights_custom.pt` in the example directory, or update the `model_path` parameter in the code.
+  </Step>
+
+  <Step title="Run the example">
+    ```bash
+    uv run security_camera_example.py run
+    ```
+    
+    The agent will join a call and start monitoring for faces and packages.
+  </Step>
+</Steps>
+
+## Complete Code
+
+Here's the main example code:
+
+```python
+import asyncio
+import logging
+from typing import Any, Dict
+
+import numpy as np
+from dotenv import load_dotenv
+from poster_generator import generate_and_post_poster
+from security_camera_processor import (
+    PackageDetectedEvent,
+    PackageDisappearedEvent,
+    PersonDetectedEvent,
+    PersonDisappearedEvent,
+    SecurityCameraProcessor,
+)
+from vision_agents.core import Agent, Runner, User
+from vision_agents.core.agents import AgentLauncher
+from vision_agents.plugins import deepgram, elevenlabs, gemini, getstream
+
+load_dotenv()
+
+logger = logging.getLogger(__name__)
+
+PACKAGE_THEFT_DELAY_SECONDS = 3.0
+_pending_theft_tasks: Dict[str, asyncio.Task] = {}
+_package_history: Dict[str, Dict[str, Any]] = {}
+
+
+async def create_agent(**kwargs) -> Agent:
+    llm = gemini.LLM("gemini-2.5-flash-lite")
+
+    security_processor = SecurityCameraProcessor(
+        fps=5,
+        time_window=1800,  # 30 minutes
+        thumbnail_size=80,
+        detection_interval=2.0,
+        bbox_update_interval=0.3,
+        model_path="weights_custom.pt",
+        package_conf_threshold=0.7,
+        max_tracked_packages=1,
+    )
+
+    agent = Agent(
+        edge=getstream.Edge(),
+        agent_user=User(name="Security AI", id="agent"),
+        instructions="Read @instructions.md",
+        processors=[security_processor],
+        llm=llm,
+        tts=elevenlabs.TTS(),
+        stt=deepgram.STT(eager_turn_detection=True),
+    )
+
+    # Merge processor events with agent events
+    agent.events.merge(security_processor.events)
+
+    # Register LLM functions
+    @llm.register_function(
+        description="Get the number of unique visitors detected in the last 30 minutes."
+    )
+    async def get_visitor_count() -> Dict[str, Any]:
+        count = security_processor.get_visitor_count()
+        state = security_processor.state()
+        return {
+            "unique_visitors": count,
+            "total_detections": state["total_face_detections"],
+            "time_window": f"{state['time_window_minutes']} minutes",
+        }
+
+    @llm.register_function(
+        description="Register the current person's face with a name so they can be recognized in the future."
+    )
+    async def remember_my_face(name: str) -> Dict[str, Any]:
+        return security_processor.register_current_face_as(name)
+
+    # Subscribe to events
+    @agent.events.subscribe
+    async def on_person_detected(event: PersonDetectedEvent):
+        if event.is_new:
+            agent.logger.info(f"🚨 NEW PERSON ALERT: {event.face_id} detected!")
+        else:
+            agent.logger.info(f"👤 Returning visitor: {event.face_id}")
+            await agent.say(f"Welcome back, {event.face_id}!")
+
+    @agent.events.subscribe
+    async def on_package_disappeared(event: PackageDisappearedEvent):
+        picker_display = event.picker_name or (
+            event.picker_face_id[:8] if event.picker_face_id else "unknown"
+        )
+        
+        async def delayed_theft_check():
+            await asyncio.sleep(PACKAGE_THEFT_DELAY_SECONDS)
+            del _pending_theft_tasks[event.package_id]
+            
+            if event.package_id in _package_history:
+                _package_history[event.package_id]["picked_up_by"] = picker_display
+            
+            if event.picker_face_id:
+                face_image = security_processor.get_face_image(event.picker_face_id)
+                if face_image is not None:
+                    await handle_package_theft(
+                        agent, face_image, picker_display, security_processor
+                    )
+        
+        _pending_theft_tasks[event.package_id] = asyncio.create_task(
+            delayed_theft_check()
+        )
+
+    return agent
+
+
+async def handle_package_theft(
+    agent: Agent,
+    face_image: np.ndarray,
+    suspect_name: str,
+    processor: SecurityCameraProcessor,
+) -> None:
+    await agent.say(
+        f"Alert! Package stolen by {suspect_name}! Generating wanted poster."
+    )
+
+    poster_bytes, tweet_url = await generate_and_post_poster(
+        face_image,
+        suspect_name,
+        post_to_x_enabled=True,
+        tweet_caption=f'🚨 WANTED: {suspect_name} caught "stealing" a package!',
+    )
+
+    if poster_bytes:
+        processor.share_image(poster_bytes, duration=8.0)
+        await agent.say("Here's the wanted poster for the package thief!")
+        
+        if tweet_url:
+            await agent.say("Wanted poster also posted to X!")
+
+
+async def join_call(agent: Agent, call_type: str, call_id: str, **kwargs) -> None:
+    call = await agent.create_call(call_type, call_id)
+    async with agent.join(call):
+        await agent.finish()
+
+
+if __name__ == "__main__":
+    Runner(AgentLauncher(create_agent=create_agent, join_call=join_call)).cli()
+```
+
+## Key Features Explained
+
+### Face Detection and Recognition
+
+Uses the [face_recognition](https://github.com/ageitgey/face_recognition) library (built on dlib):
+
+- Provides state-of-the-art accuracy
+- Generates 128-dimensional face encodings
+- Can identify the same person across different angles and lighting
+- Supports named face registration
+
+### Package Theft Workflow
+
+When a package disappears:
+
+1. System identifies who was present when the package disappeared
+2. Waits 3 seconds to confirm the package is truly gone (not a detection blip)
+3. Generates a "WANTED" poster with the suspect's face
+4. Displays the poster in the video call for 8 seconds
+5. Posts the poster to X with a caption
+6. Agent announces the theft
+
+```python
+PACKAGE_THEFT_DELAY_SECONDS = 3.0
+
+@agent.events.subscribe
+async def on_package_disappeared(event: PackageDisappearedEvent):
+    async def delayed_theft_check():
+        await asyncio.sleep(PACKAGE_THEFT_DELAY_SECONDS)
+        # Confirm package is gone and trigger workflow
+        ...
+    
+    _pending_theft_tasks[event.package_id] = asyncio.create_task(
+        delayed_theft_check()
+    )
+```
+
+### Video Overlay
+
+The right side of the video shows:
+
+- **Header**: "SECURITY CAMERA"
+- **Visitor Count**: Currently visible / total unique visitors
+- **Package Count**: Currently visible / total packages seen
+- **Legend**: Color coding for people (green) and packages (blue)
+- **Thumbnail Grid**: Up to 12 most recent faces and packages
+- **Detection Badges**: Show how many times each person/package was seen
+- **Timestamp**: Current date and time
+
+Bounding boxes are drawn around detected faces (green) and packages (blue).
+
+### LLM Functions
+
+The agent has access to several functions:
+
+```python
+@llm.register_function(
+    description="Get the number of unique visitors detected in the last 30 minutes."
+)
+async def get_visitor_count() -> Dict[str, Any]:
+    count = security_processor.get_visitor_count()
+    return {"unique_visitors": count, ...}
+
+@llm.register_function(
+    description="Register the current person's face with a name."
+)
+async def remember_my_face(name: str) -> Dict[str, Any]:
+    return security_processor.register_current_face_as(name)
+
+# Also available:
+# - get_visitor_details()
+# - get_package_count()
+# - get_package_details()
+# - get_activity_log()
+# - get_known_faces()
+```
+
+## Interacting with the AI
+
+Once connected, you can say:
+
+- "How many people have visited?"
+- "What happened while I was away?"
+- "Did anyone come by?"
+- "Have any packages been delivered?"
+- "Who picked up the package?"
+- "Remember me as John"
+- "Who do you know?"
+
+## Package Theft Demo
+
+To trigger the theft workflow:
+
+1. Place a package (box, parcel) in view of the camera
+2. Wait for it to be detected (blue bounding box appears)
+3. Have someone pick up the package while their face is visible
+4. The system will:
+   - Detect the package disappearance
+   - Wait 3 seconds to confirm
+   - Generate a wanted poster
+   - Display it in the video
+   - Post it to X (if configured)
+
+## Configuration Options
+
+```python
+security_processor = SecurityCameraProcessor(
+    fps=5,  # Frames per second to process
+    time_window=1800,  # Time window in seconds (30 min)
+    thumbnail_size=80,  # Thumbnail size in pixels
+    detection_interval=2.0,  # Seconds between full face detection
+    bbox_update_interval=0.3,  # Seconds between bbox updates
+    model_path="weights_custom.pt",  # YOLO model path
+    package_conf_threshold=0.7,  # Package detection confidence
+    max_tracked_packages=1,  # Single-package mode
+    face_match_tolerance=0.6,  # Face matching tolerance (lower = stricter)
+)
+```
+
+## Event System
+
+The processor emits events that you can subscribe to:
+
+```python
+@agent.events.subscribe
+async def on_person_detected(event: PersonDetectedEvent):
+    # event.face_id, event.name, event.is_new, event.detection_count
+    ...
+
+@agent.events.subscribe
+async def on_person_disappeared(event: PersonDisappearedEvent):
+    # event.face_id, event.name
+    ...
+
+@agent.events.subscribe
+async def on_package_detected(event: PackageDetectedEvent):
+    # event.package_id, event.is_new, event.confidence
+    ...
+
+@agent.events.subscribe
+async def on_package_disappeared(event: PackageDisappearedEvent):
+    # event.package_id, event.picker_face_id, event.picker_name
+    ...
+```
+
+## About the Custom YOLO Model
+
+The `weights_custom.pt` file is a YOLOv11 model trained to detect:
+
+- Box
+- Box_broken
+- Open_package
+- Package
+
+We trained it using [Roboflow](https://roboflow.com) with [SAM 3](https://blog.roboflow.com/sam3/) for assisted labeling. SAM 3's text-prompt segmentation made it fast to annotate packages accurately.
+
+**We are not distributing the weights.** You need to provide your own model (see Setup step 4).
+
+## Next Steps
+
+- Try the [Football Commentator Example](/examples/football-commentator) for event-driven detection
+- Explore the [Golf Coach Example](/examples/golf-coach) for pose detection
+- Read the [Processors Guide](/guides/custom-processors) for building custom processors
+- Learn about [Event Systems](/api/event-manager) for event-driven architectures

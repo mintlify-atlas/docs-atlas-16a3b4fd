@@ -1,122 +1,142 @@
 {
   "$schema": "https://mintlify.com/docs.json",
-  "theme": "mint",
-  "name": "Mint Starter Kit",
+  "name": "Vision Agents",
+  "theme": "aspen",
   "colors": {
-    "primary": "#16A34A",
-    "light": "#07C983",
-    "dark": "#15803D"
+    "primary": "#3B82F6",
+    "light": "#60A5FA",
+    "dark": "#2563EB"
   },
   "favicon": "/favicon.svg",
+  "navbar": {
+    "primary": {
+      "type": "github",
+      "href": "https://github.com/GetStream/Vision-Agents"
+    }
+  },
+  "footer": {
+    "socials": {
+      "github": "https://github.com/GetStream/Vision-Agents"
+    }
+  },
   "navigation": {
     "tabs": [
       {
-        "tab": "Guides",
+        "tab": "Documentation",
         "groups": [
           {
-            "group": "Getting started",
+            "group": "Get Started",
             "pages": [
-              "index",
+              "introduction",
               "quickstart",
-              "development"
+              "installation"
             ]
           },
           {
-            "group": "Customization",
+            "group": "Core Concepts",
             "pages": [
-              "essentials/settings",
-              "essentials/navigation"
+              "concepts/agents",
+              "concepts/edge-networks",
+              "concepts/processors",
+              "concepts/realtime-vs-interval",
+              "concepts/turn-detection",
+              "concepts/function-calling"
             ]
           },
           {
-            "group": "Writing content",
+            "group": "Building Agents",
             "pages": [
-              "essentials/markdown",
-              "essentials/code",
-              "essentials/images",
-              "essentials/reusable-snippets"
+              "guides/voice-agents",
+              "guides/video-agents",
+              "guides/custom-processors",
+              "guides/rag-integration",
+              "guides/deployment",
+              "guides/observability"
             ]
           },
           {
-            "group": "AI tools",
+            "group": "Integrations",
             "pages": [
-              "ai-tools/cursor",
-              "ai-tools/claude-code",
-              "ai-tools/windsurf"
+              "integrations/overview",
+              "integrations/gemini",
+              "integrations/openai",
+              "integrations/anthropic",
+              "integrations/aws-bedrock",
+              "integrations/deepgram",
+              "integrations/elevenlabs",
+              "integrations/ultralytics",
+              "integrations/roboflow",
+              "integrations/moondream",
+              "integrations/twilio",
+              "integrations/turbopuffer"
+            ]
+          },
+          {
+            "group": "Examples",
+            "pages": [
+              "examples/simple-agent",
+              "examples/golf-coach",
+              "examples/security-camera",
+              "examples/phone-rag",
+              "examples/football-commentator"
             ]
           }
         ]
       },
       {
-        "tab": "API reference",
+        "tab": "API Reference",
         "groups": [
           {
-            "group": "API documentation",
+            "group": "Core",
             "pages": [
-              "api-reference/introduction"
+              "api/agent",
+              "api/agent-launcher",
+              "api/runner",
+              "api/user"
             ]
           },
           {
-            "group": "Endpoint examples",
+            "group": "LLM Components",
             "pages": [
-              "api-reference/endpoint/get",
-              "api-reference/endpoint/create",
-              "api-reference/endpoint/delete",
-              "api-reference/endpoint/webhook"
+              "api/llm",
+              "api/realtime",
+              "api/stt",
+              "api/tts"
+            ]
+          },
+          {
+            "group": "Processors",
+            "pages": [
+              "api/processor",
+              "api/video-processor",
+              "api/audio-processor"
+            ]
+          },
+          {
+            "group": "Edge & Transport",
+            "pages": [
+              "api/edge",
+              "api/call",
+              "api/connection"
+            ]
+          },
+          {
+            "group": "Session Management",
+            "pages": [
+              "api/session-registry",
+              "api/session-store"
+            ]
+          },
+          {
+            "group": "Events",
+            "pages": [
+              "api/event-manager",
+              "api/agent-events",
+              "api/llm-events"
             ]
           }
         ]
       }
-    ],
-    "global": {
-      "anchors": [
-        {
-          "anchor": "Documentation",
-          "href": "https://mintlify.com/docs",
-          "icon": "book-open-cover"
-        },
-        {
-          "anchor": "Blog",
-          "href": "https://mintlify.com/blog",
-          "icon": "newspaper"
-        }
-      ]
-    }
-  },
-  "logo": {
-    "light": "/logo/light.svg",
-    "dark": "/logo/dark.svg"
-  },
-  "navbar": {
-    "links": [
-      {
-        "label": "Support",
-        "href": "mailto:hi@mintlify.com"
-      }
-    ],
-    "primary": {
-      "type": "button",
-      "label": "Dashboard",
-      "href": "https://dashboard.mintlify.com"
-    }
-  },
-  "contextual": {
-    "options": [
-     "copy",
-     "view",
-     "chatgpt",
-     "claude",
-     "perplexity",
-     "mcp",
-     "cursor",
-     "vscode"
-   ]
-  },
-  "footer": {
-    "socials": {
-      "x": "https://x.com/mintlify",
-      "github": "https://github.com/mintlify",
-      "linkedin": "https://linkedin.com/company/mintlify"
-    }
+    ]
   }
 }

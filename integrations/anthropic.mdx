@@ -1,0 +1,204 @@
+---
+title: "Anthropic"
+description: "Claude integration for advanced reasoning and natural conversations"
+---
+
+The Anthropic plugin provides access to Claude models for sophisticated language understanding and generation.
+
+## Installation
+
+```bash
+uv add vision-agents[anthropic]
+```
+
+## Authentication
+
+Set your API key in the environment:
+
+```bash
+export ANTHROPIC_API_KEY=your_anthropic_api_key
+```
+
+## Components
+
+### LLM - Claude Models
+
+Use Claude for text-based conversations with advanced reasoning:
+
+```python
+from vision_agents.plugins import anthropic, deepgram, elevenlabs, getstream, smart_turn
+from vision_agents.core import Agent, User
+
+llm = anthropic.LLM(model="claude-opus-4-1-20250805")
+
+agent = Agent(
+    edge=getstream.Edge(),
+    agent_user=User(name="Claude Assistant"),
+    instructions="Provide thoughtful and detailed responses.",
+    llm=llm,
+    tts=elevenlabs.TTS(),
+    stt=deepgram.STT(),
+    turn_detection=smart_turn.TurnDetection()
+)
+```
+
+<ParamField path="model" type="string" required>
+  The Claude model to use. Options include:
+  - `claude-opus-4-1-20250805` - Most capable model
+  - `claude-sonnet-4-20250514` - Balanced performance
+  - `claude-3-5-sonnet-20241022` - Previous generation
+  - `claude-haiku-3-5-20241022` - Fast and efficient
+</ParamField>
+
+<ParamField path="api_key" type="string">
+  Optional API key. Defaults to `ANTHROPIC_API_KEY` environment variable
+</ParamField>
+
+<ParamField path="client" type="AsyncAnthropic">
+  Optional custom Anthropic client instance
+</ParamField>
+
+## Usage Patterns
+
+### Simple Response
+
+Create a quick response without managing conversation state:
+
+```python
+from vision_agents.plugins import anthropic
+
+llm = anthropic.LLM(model="claude-opus-4-1-20250805")
+
+# Simple one-off response
+response = await llm.simple_response(
+    "Explain quantum computing in simple terms"
+)
+```
+
+### Create Message
+
+Full access to Claude's native messages API:
+
+```python
+response = await llm.create_message(
+    messages=[
+        {"role": "user", "content": "What is the capital of France?"}
+    ],
+    max_tokens=1000
+)
+```
+
+### With Agent Context
+
+Provide processor context for video/audio state:
+
+```python
+response = await llm.simple_response(
+    text="Describe what you hear",
+    processors=[audio_processor],
+    participant=participant_obj
+)
+```
+
+## Function Calling
+
+Register custom functions for Claude to invoke:
+
+```python
+from vision_agents.plugins import anthropic
+
+llm = anthropic.LLM(model="claude-opus-4-1-20250805")
+
+@llm.register_function(
+    name="search_database",
+    description="Search the product database for items"
+)
+def search_database(query: str, limit: int = 10) -> list:
+    """Search products by query."""
+    # Your implementation
+    return [{"name": "Product 1", "price": 99}]
+
+@llm.register_function(
+    name="get_user_info",
+    description="Get information about the current user"
+)
+def get_user_info(user_id: str) -> dict:
+    """Fetch user profile data."""
+    return {"name": "Alice", "tier": "premium"}
+```
+
+## Configuration Examples
+
+### Text-Only Agent
+
+```python
+from vision_agents.core import Agent, User
+from vision_agents.plugins import anthropic
+
+agent = Agent(
+    agent_user=User(name="Text Assistant"),
+    instructions="You are a helpful coding assistant.",
+    llm=anthropic.LLM("claude-opus-4-1-20250805")
+)
+```
+
+### Voice Agent
+
+```python
+from vision_agents.plugins import anthropic, deepgram, elevenlabs, getstream
+
+agent = Agent(
+    edge=getstream.Edge(),
+    agent_user=User(name="Voice Assistant"),
+    llm=anthropic.LLM("claude-sonnet-4-20250514"),
+    stt=deepgram.STT(),
+    tts=elevenlabs.TTS()
+)
+```
+
+### With Custom Client
+
+```python
+import anthropic as anthropic_sdk
+from vision_agents.plugins import anthropic
+
+custom_client = anthropic_sdk.AsyncAnthropic(
+    api_key="your_key",
+    max_retries=3
+)
+
+llm = anthropic.LLM(
+    model="claude-opus-4-1-20250805",
+    client=custom_client
+)
+```
+
+## Model Selection Guide
+
+| Model | Use Case | Speed | Capability |
+|-------|----------|-------|------------|
+| Claude Opus 4.1 | Complex reasoning, research | Slower | Highest |
+| Claude Sonnet 4 | Balanced tasks | Medium | High |
+| Claude 3.5 Sonnet | General purpose | Medium | Good |
+| Claude Haiku 3.5 | Quick responses | Fastest | Efficient |
+
+## Environment Variables
+
+```bash
+ANTHROPIC_API_KEY=your_anthropic_api_key_here
+```
+
+## API Details
+
+The plugin uses Anthropic's messages API with streaming support:
+
+- History is maintained manually in memory
+- Tool calling is fully supported
+- Streaming responses emit chunk events
+- Automatic normalization to Vision Agents format
+
+## References
+
+- [Claude Models Documentation](https://docs.anthropic.com/en/docs/about-claude/models/overview)
+- [Anthropic API Reference](https://docs.anthropic.com/en/api)
+- Plugin Source: `plugins/anthropic/vision_agents/plugins/anthropic/__init__.py`

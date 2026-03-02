@@ -1,0 +1,121 @@
+---
+title: "Integrations Overview"
+description: "Extend Vision Agents with powerful third-party integrations"
+---
+
+Vision Agents supports a wide range of integrations to enhance your voice and video AI applications. These integrations are organized into several categories:
+
+## Language Models
+
+Connect to leading LLM providers for natural language understanding and generation:
+
+<CardGroup cols={2}>
+  <Card title="Gemini" icon="google" href="/integrations/gemini">
+    Google's multimodal AI with vision, speech, and text capabilities
+  </Card>
+  
+  <Card title="OpenAI" icon="openai" href="/integrations/openai">
+    GPT models for chat, vision, and realtime interactions
+  </Card>
+  
+  <Card title="Anthropic" icon="message" href="/integrations/anthropic">
+    Claude models for advanced reasoning and conversation
+  </Card>
+  
+  <Card title="AWS Bedrock" icon="aws" href="/integrations/aws-bedrock">
+    Access to Claude, Qwen, and Nova models on AWS
+  </Card>
+</CardGroup>
+
+## Speech & Audio
+
+Integrate speech-to-text and text-to-speech capabilities:
+
+<CardGroup cols={2}>
+  <Card title="Deepgram" icon="microphone" href="/integrations/deepgram">
+    High-quality STT and TTS with Flux and Aura models
+  </Card>
+  
+  <Card title="ElevenLabs" icon="volume" href="/integrations/elevenlabs">
+    Premium text-to-speech with natural voices
+  </Card>
+  
+  <Card title="Twilio" icon="phone" href="/integrations/twilio">
+    Phone call integration with media streaming
+  </Card>
+</CardGroup>
+
+## Computer Vision
+
+Add object detection and visual understanding:
+
+<CardGroup cols={2}>
+  <Card title="Ultralytics" icon="eye" href="/integrations/ultralytics">
+    YOLO-based pose detection and tracking
+  </Card>
+  
+  <Card title="Roboflow" icon="cube" href="/integrations/roboflow">
+    Cloud and local object detection with RF-DETR
+  </Card>
+  
+  <Card title="Moondream" icon="moon" href="/integrations/moondream">
+    Zero-shot detection and visual question answering
+  </Card>
+</CardGroup>
+
+## Data & Storage
+
+Enhance your agents with retrieval and memory:
+
+<CardGroup cols={1}>
+  <Card title="TurboPuffer" icon="database" href="/integrations/turbopuffer">
+    Hybrid vector + BM25 search for RAG
+  </Card>
+</CardGroup>
+
+## Installation
+
+Most integrations can be installed with the Vision Agents extras syntax:
+
+```bash
+uv add vision-agents[gemini]
+uv add vision-agents[openai]
+uv add vision-agents[anthropic]
+```
+
+Some plugins have their own packages:
+
+```bash
+uv add vision-agents-plugins-deepgram
+uv add vision-agents-plugins-elevenlabs
+```
+
+## Environment Variables
+
+Each integration requires API credentials. Create a `.env` file:
+
+```bash
+# Language Models
+GOOGLE_API_KEY=your_google_api_key
+OPENAI_API_KEY=your_openai_api_key
+ANTHROPIC_API_KEY=your_anthropic_api_key
+AWS_ACCESS_KEY_ID=your_aws_key
+AWS_SECRET_ACCESS_KEY=your_aws_secret
+
+# Speech & Audio
+DEEPGRAM_API_KEY=your_deepgram_key
+ELEVENLABS_API_KEY=your_elevenlabs_key
+TWILIO_ACCOUNT_SID=your_twilio_sid
+TWILIO_AUTH_TOKEN=your_twilio_token
+
+# Vision
+ROBOFLOW_API_KEY=your_roboflow_key
+MOONDREAM_API_KEY=your_moondream_key
+
+# Data
+TURBO_PUFFER_KEY=your_turbopuffer_key
+```
+
+## Next Steps
+
+Explore the individual integration guides to learn about configuration options, usage examples, and API details.

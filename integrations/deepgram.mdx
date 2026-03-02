@@ -1,0 +1,196 @@
+---
+title: "Deepgram"
+description: "Speech-to-text and text-to-speech using Deepgram's Flux and Aura models"
+---
+
+The Deepgram plugin provides high-quality speech recognition (STT) and text-to-speech (TTS) capabilities.
+
+## Installation
+
+```bash
+uv add vision-agents-plugins-deepgram
+```
+
+## Authentication
+
+Set your API key in the environment:
+
+```bash
+export DEEPGRAM_API_KEY=your_deepgram_api_key
+```
+
+## Components
+
+### STT - Speech-to-Text
+
+High-quality speech recognition using Deepgram's Flux model:
+
+```python
+from vision_agents.plugins import deepgram
+
+stt = deepgram.STT(
+    model="flux-general-en",
+    eager_turn_detection=True
+)
+
+# Use in an agent
+agent = Agent(
+    stt=stt,
+    # ... other config
+)
+```
+
+<ParamField path="model" type="string" default="flux-general-en">
+  Deepgram model to use for transcription. See [Flux models](https://developers.deepgram.com/docs/flux/quickstart)
+</ParamField>
+
+<ParamField path="eager_turn_detection" type="bool" default="True">
+  Enable eager end-of-turn detection for faster response times
+</ParamField>
+
+<ParamField path="api_key" type="string">
+  Optional API key. Defaults to `DEEPGRAM_API_KEY` environment variable
+</ParamField>
+
+### TTS - Text-to-Speech
+
+Low-latency text-to-speech using Deepgram's Aura model:
+
+```python
+from vision_agents.plugins import deepgram
+
+tts = deepgram.TTS(
+    model="aura-2-thalia-en",
+    sample_rate=16000
+)
+
+# Use in an agent
+agent = Agent(
+    tts=tts,
+    # ... other config
+)
+```
+
+<ParamField path="model" type="string" default="aura-2-thalia-en">
+  Deepgram Aura voice model. See [Available Voices](#available-voices)
+</ParamField>
+
+<ParamField path="sample_rate" type="int" default="16000">
+  Audio sample rate in Hz
+</ParamField>
+
+<ParamField path="api_key" type="string">
+  Optional API key. Defaults to `DEEPGRAM_API_KEY` environment variable
+</ParamField>
+
+## Available Voices
+
+Deepgram offers various Aura voice models:
+
+| Voice | Description | Language |
+|-------|-------------|----------|
+| `aura-2-thalia-en` | Default female voice | English |
+| `aura-2-orion-en` | Male voice | English |
+| `aura-2-asteria-en` | Female voice | English |
+| `aura-2-perseus-en` | Male voice | English |
+
+See [TTS Models](https://developers.deepgram.com/docs/tts-models) for all options.
+
+## Usage Example
+
+Combine STT and TTS in a voice agent:
+
+```python
+from vision_agents.core import Agent, User
+from vision_agents.plugins import deepgram, openai, getstream
+
+agent = Agent(
+    edge=getstream.Edge(),
+    agent_user=User(name="Voice Assistant"),
+    instructions="You are a helpful voice assistant.",
+    llm=openai.LLM("gpt-4.1"),
+    stt=deepgram.STT(
+        model="flux-general-en",
+        eager_turn_detection=True
+    ),
+    tts=deepgram.TTS(
+        model="aura-2-thalia-en",
+        sample_rate=16000
+    )
+)
+```
+
+## Configuration Tips
+
+### For Fastest Response
+
+```python
+stt = deepgram.STT(
+    model="flux-general-en",
+    eager_turn_detection=True  # Detect turn end quickly
+)
+
+tts = deepgram.TTS(
+    model="aura-2-thalia-en",
+    sample_rate=16000  # Lower sample rate for speed
+)
+```
+
+### For Best Quality
+
+```python
+stt = deepgram.STT(
+    model="flux-general-en",
+    eager_turn_detection=False  # Wait for complete utterance
+)
+
+tts = deepgram.TTS(
+    model="aura-2-thalia-en",
+    sample_rate=24000  # Higher sample rate
+)
+```
+
+## Features
+
+### Speech-to-Text (STT)
+
+- Built-in turn detection
+- Real-time streaming transcription
+- High accuracy with Flux models
+- Automatic punctuation and formatting
+
+### Text-to-Speech (TTS)
+
+- Low-latency WebSocket streaming
+- Natural-sounding voices
+- Multiple voice options
+- Configurable sample rates
+
+## Environment Variables
+
+```bash
+DEEPGRAM_API_KEY=your_deepgram_api_key_here
+```
+
+## Technical Details
+
+### STT Implementation
+
+- Uses Deepgram's real-time streaming API
+- WebSocket connection for low latency
+- Automatic reconnection handling
+- Built-in silence detection for turn taking
+
+### TTS Implementation
+
+- WebSocket streaming for fast audio delivery
+- Chunked audio output for immediate playback
+- Configurable sample rates (8000-48000 Hz)
+- Automatic audio format conversion
+
+## References
+
+- [Deepgram STT Docs](https://developers.deepgram.com/docs/flux/quickstart)
+- [Deepgram TTS Docs](https://developers.deepgram.com/docs/tts-websocket)
+- [Python SDK Examples](https://github.com/deepgram/deepgram-python-sdk/blob/main/examples/listen/v2/connect/async.py)
+- Plugin Source: `plugins/deepgram/vision_agents/plugins/deepgram/__init__.py`

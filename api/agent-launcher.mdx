@@ -1,0 +1,388 @@
+---
+title: AgentLauncher
+description: Manages agent lifecycle, warmup, and session management
+---
+
+## Overview
+
+The `AgentLauncher` handles warmup and lifecycle management for agents. It ensures all components (LLM, TTS, STT, turn detection) are warmed up before agents are launched and manages multiple concurrent sessions.
+
+```python
+from vision_agents.core import Agent, AgentLauncher
+
+def create_agent():
+    return Agent(
+        edge=Edge(),
+        agent_user=User(id="agent", name="AI Assistant"),
+        llm=Realtime(),
+        instructions="You are a helpful assistant.",
+    )
+
+async def join_call(agent, call_type, call_id):
+    call = await agent.create_call(call_type, call_id)
+    async with agent.join(call):
+        await agent.finish()
+
+launcher = AgentLauncher(
+    create_agent=create_agent,
+    join_call=join_call,
+    agent_idle_timeout=60.0,
+    max_concurrent_sessions=10,
+)
+
+async with launcher:
+    session = await launcher.start_session("my-call-id")
+    await session.wait()
+```
+
+## Constructor
+
+```python
+AgentLauncher(
+    create_agent: Callable[..., Agent | Coroutine[Any, Any, Agent]],
+    join_call: Callable[[Agent, str, str], Coroutine],
+    agent_idle_timeout: float = 60.0,
+    max_concurrent_sessions: Optional[int] = None,
+    max_sessions_per_call: Optional[int] = None,
+    max_session_duration_seconds: Optional[float] = None,
+    maintenance_interval: float = 5.0,
+    registry: Optional[SessionRegistry] = None,
+)
+```
+
+### Parameters
+
+<ParamField path="create_agent" type="Callable[..., Agent | Coroutine[Any, Any, Agent]]" required>
+  A function that creates and returns an Agent instance. Can be sync or async.
+</ParamField>
+
+<ParamField path="join_call" type="Callable[[Agent, str, str], Coroutine]" required>
+  A coroutine function that handles joining a call with the agent. Receives (agent, call_type, call_id).
+</ParamField>
+
+<ParamField path="agent_idle_timeout" type="float" default="60.0">
+  Timeout in seconds for an agent to stay alone on a call before being automatically closed. Set to 0 to disable idle timeout (agents won't leave until the call ends).
+</ParamField>
+
+<ParamField path="max_concurrent_sessions" type="Optional[int]" default="None">
+  Maximum number of concurrent sessions allowed across all calls. None means unlimited.
+</ParamField>
+
+<ParamField path="max_sessions_per_call" type="Optional[int]" default="None">
+  Maximum number of sessions allowed per call_id. None means unlimited.
+</ParamField>
+
+<ParamField path="max_session_duration_seconds" type="Optional[float]" default="None">
+  Maximum duration in seconds for a session before it is automatically closed. None means unlimited.
+</ParamField>
+
+<ParamField path="maintenance_interval" type="float" default="5.0">
+  Interval in seconds between cleanup checks for idle or expired sessions.
+</ParamField>
+
+<ParamField path="registry" type="Optional[SessionRegistry]" default="None">
+  Optional SessionRegistry for multi-node session management. When provided, sessions are registered in shared storage and heartbeats are sent on every cleanup interval.
+</ParamField>
+
+## Properties
+
+### warmed_up
+
+```python
+@property
+def warmed_up(self) -> bool
+```
+
+<ResponseField name="warmed_up" type="bool">
+  Returns True if the agent components have been warmed up.
+</ResponseField>
+
+### running
+
+```python
+@property
+def running(self) -> bool
+```
+
+<ResponseField name="running" type="bool">
+  Returns True if the launcher is currently running.
+</ResponseField>
+
+### ready
+
+```python
+@property
+def ready(self) -> bool
+```
+
+<ResponseField name="ready" type="bool">
+  Returns True if the launcher is warmed up and running.
+</ResponseField>
+
+### registry
+
+```python
+@property
+def registry(self) -> SessionRegistry
+```
+
+<ResponseField name="registry" type="SessionRegistry">
+  Returns the session registry instance.
+</ResponseField>
+
+## Methods
+
+### start
+
+```python
+async def start(self) -> None
+```
+
+Start the agent launcher. This method warms up the agent components and starts the background cleanup task for managing idle and expired sessions.
+
+**Raises:**
+- `RuntimeError`: If the launcher is already running.
+
+### stop
+
+```python
+async def stop(self) -> None
+```
+
+Stop the agent launcher and close all active sessions. This method cancels the cleanup task, then cancels and waits for all active session tasks to complete.
+
+### warmup
+
+```python
+async def warmup(self) -> None
+```
+
+Warm up all agent components. This method creates the agent and calls warmup() on LLM, TTS, STT, and turn detection components if they exist.
+
+### launch
+
+```python
+async def launch(self, **kwargs) -> Agent
+```
+
+Launch the agent.
+
+<ParamField path="**kwargs" type="Any">
+  Additional keyword arguments to pass to create_agent.
+</ParamField>
+
+<ResponseField name="return" type="Agent">
+  The Agent instance.
+</ResponseField>
+
+### start_session
+
+```python
+async def start_session(
+    self,
+    call_id: str,
+    call_type: str = "default",
+    video_track_override_path: Optional[str] = None,
+) -> AgentSession
+```
+
+Start a new agent session for a call on this node. Creates a new agent, joins the specified call, and returns an AgentSession object to track the session.
+
+<ParamField path="call_id" type="str" required>
+  Unique identifier for the call to join. Must contain only a-z, 0-9, _ and -.
+</ParamField>
+
+<ParamField path="call_type" type="str" default="default">
+  Type of call.
+</ParamField>
+
+<ParamField path="video_track_override_path" type="Optional[str]" default="None">
+  Optional path to a video file to use instead of a live video track.
+</ParamField>
+
+<ResponseField name="return" type="AgentSession">
+  An AgentSession object representing the new session.
+</ResponseField>
+
+**Raises:**
+- `InvalidCallId`: If the call_id contains invalid characters.
+- `MaxConcurrentSessionsExceeded`: If the maximum number of concurrent sessions has been reached.
+- `MaxSessionsPerCallExceeded`: If the maximum number of sessions for this call_id has been reached.
+
+### close_session
+
+```python
+async def close_session(
+    self,
+    session_id: str,
+    wait: bool = False
+) -> bool
+```
+
+Close a session running on this node (local + registry cleanup). Removes the session from the local map, cancels the agent task, and deletes the corresponding registry entry.
+
+<ParamField path="session_id" type="str" required>
+  Session ID to close.
+</ParamField>
+
+<ParamField path="wait" type="bool" default="False">
+  When True, wait for the underlying agent to finish. Otherwise, just cancel the task and return.
+</ParamField>
+
+<ResponseField name="return" type="bool">
+  True if session was found and closed, False otherwise.
+</ResponseField>
+
+### get_session
+
+```python
+def get_session(self, session_id: str) -> Optional[AgentSession]
+```
+
+Get a session running on this node by its ID (local lookup only).
+
+<ParamField path="session_id" type="str" required>
+  The session ID to look up.
+</ParamField>
+
+<ResponseField name="return" type="Optional[AgentSession]">
+  The AgentSession if found on this node, None otherwise.
+</ResponseField>
+
+### request_close_session
+
+```python
+async def request_close_session(
+    self,
+    call_id: str,
+    session_id: str
+) -> None
+```
+
+Request closure of a session via the shared registry (any node). Sets a close flag so the owning node picks it up on its next maintenance cycle.
+
+<ParamField path="call_id" type="str" required>
+  The call the session belongs to.
+</ParamField>
+
+<ParamField path="session_id" type="str" required>
+  The session to close.
+</ParamField>
+
+### get_session_info
+
+```python
+async def get_session_info(
+    self,
+    call_id: str,
+    session_id: str
+) -> SessionInfo | None
+```
+
+Look up session info from the shared registry (any node).
+
+<ParamField path="call_id" type="str" required>
+  The call the session belongs to.
+</ParamField>
+
+<ParamField path="session_id" type="str" required>
+  The session to look up.
+</ParamField>
+
+<ResponseField name="return" type="SessionInfo | None">
+  Session information if found, None otherwise.
+</ResponseField>
+
+## AgentSession
+
+Represents an active agent session within a call. An AgentSession wraps an Agent instance along with metadata about the session.
+
+### Properties
+
+#### agent
+
+```python
+agent: Agent
+```
+
+The Agent instance for this session.
+
+#### call_id
+
+```python
+call_id: str
+```
+
+The call ID this session belongs to.
+
+#### started_at
+
+```python
+started_at: datetime
+```
+
+Timestamp when the session started.
+
+#### task
+
+```python
+task: asyncio.Task
+```
+
+The async task running the agent's call handler.
+
+#### finished
+
+```python
+@property
+def finished(self) -> bool
+```
+
+Return True if the session task has completed.
+
+#### id
+
+```python
+@property
+def id(self) -> str
+```
+
+Return the session ID (same as the agent ID).
+
+### Methods
+
+#### wait
+
+```python
+async def wait(self)
+```
+
+Wait for the session task to finish running.
+
+#### on_call_for
+
+```python
+def on_call_for(self) -> float
+```
+
+Return the number of seconds for how long the agent has been on the call. Returns 0.0 if the agent has not joined a call yet.
+
+#### idle_for
+
+```python
+def idle_for(self) -> float
+```
+
+Return the idle time for this session if there are no other participants except the agent.
+
+## Context Manager Usage
+
+The AgentLauncher supports async context manager usage:
+
+```python
+async with launcher:
+    # Launcher is started automatically
+    session = await launcher.start_session("call-123")
+    await session.wait()
+# Launcher is stopped automatically
+```

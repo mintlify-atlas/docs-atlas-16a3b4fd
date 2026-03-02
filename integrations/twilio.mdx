@@ -1,0 +1,321 @@
+---
+title: "Twilio"
+description: "Phone call integration with bidirectional audio streaming via Twilio Media Streams"
+---
+
+The Twilio plugin enables voice AI agents to handle phone calls with real-time audio streaming.
+
+## Installation
+
+```bash
+uv add vision-agents[twilio]
+```
+
+## Authentication
+
+Set your Twilio credentials in the environment:
+
+```bash
+export TWILIO_ACCOUNT_SID=your_twilio_account_sid
+export TWILIO_AUTH_TOKEN=your_twilio_auth_token
+```
+
+## Components
+
+### TwilioCallRegistry
+
+In-memory registry for managing active calls:
+
+```python
+from vision_agents.plugins import twilio
+
+registry = twilio.TwilioCallRegistry()
+
+# Create a call
+call = registry.create(
+    call_sid="CA123...",
+    form_data={"From": "+1234567890", "To": "+0987654321"}
+)
+
+# Look up a call
+call = registry.get("CA123...")
+
+# List active calls
+active_calls = registry.list_active()
+
+# Remove call (marks as ended)
+registry.remove("CA123...")
+```
+
+### TwilioCall
+
+Dataclass representing an active call session:
+
+```python
+from dataclasses import dataclass
+from datetime import datetime
+
+@dataclass
+class TwilioCall:
+    call_sid: str
+    form_data: dict[str, Any]  # All Twilio webhook data
+    twilio_stream: Optional[TwilioMediaStream]
+    stream_call: Optional[Any]  # Stream video call
+    started_at: datetime
+    ended_at: Optional[datetime]
+    
+    # Convenience properties
+    from_number: str  # Caller's phone number
+    to_number: str    # Called phone number
+    call_status: str  # Current call status
+```
+
+### TwilioMediaStream
+
+Manages Twilio Media Stream WebSocket connections:
+
+```python
+from vision_agents.plugins import twilio
+
+stream = twilio.TwilioMediaStream(websocket)
+await stream.accept()
+
+# Access the audio track for publishing
+audio_track = stream.audio_track  # AudioStreamTrack at 8kHz
+
+# Send audio back to Twilio
+await stream.send_audio(pcm_data)
+
+# Run until stream ends
+await stream.run()
+```
+
+## Usage Examples
+
+### Basic Call Handling
+
+```python
+from vision_agents.plugins import twilio
+
+# Create registry
+registry = twilio.TwilioCallRegistry()
+
+# When receiving voice webhook
+call = registry.create(
+    call_sid="CA123...",
+    form_data={"From": "+1234567890", "To": "+0987654321"}
+)
+
+# Create media stream
+stream = twilio.TwilioMediaStream(websocket)
+await stream.accept()
+
+# Associate with call
+call.twilio_stream = stream
+
+# Run stream
+await stream.run()
+```
+
+### Complete Phone Agent
+
+```python
+from fastapi import FastAPI, WebSocket
+from vision_agents.plugins import twilio, openai, getstream
+from vision_agents.core import Agent, User
+
+app = FastAPI()
+registry = twilio.TwilioCallRegistry()
+
+@app.post("/voice")
+async def voice_webhook(request: twilio.CallWebhookInput):
+    """Handle incoming call."""
+    call = registry.create(
+        call_sid=request.CallSid,
+        form_data=request.dict()
+    )
+    
+    # Return TwiML to start media stream
+    return twilio.create_media_stream_twiml(
+        websocket_url="wss://your-domain.com/media"
+    )
+
+@app.websocket("/media")
+async def media_stream(websocket: WebSocket):
+    """Handle media stream WebSocket."""
+    stream = twilio.TwilioMediaStream(websocket)
+    await stream.accept()
+    
+    # Create agent
+    agent = Agent(
+        edge=getstream.Edge(),
+        agent_user=User(name="Phone Agent"),
+        instructions="You are a helpful phone assistant.",
+        llm=openai.Realtime()
+    )
+    
+    # Attach to phone call
+    call = await twilio.attach_phone_to_call(stream, agent)
+    
+    # Run stream
+    await stream.run()
+```
+
+### Audio Conversion Utilities
+
+```python
+from vision_agents.plugins.twilio import (
+    mulaw_to_pcm,
+    pcm_to_mulaw,
+    TWILIO_SAMPLE_RATE
+)
+
+# Twilio sends audio in mulaw format at 8kHz
+TWILIO_SAMPLE_RATE  # 8000 Hz
+
+# Convert Twilio mulaw to PCM
+pcm_data = mulaw_to_pcm(mulaw_bytes)
+
+# Convert PCM to Twilio mulaw
+mulaw_data = pcm_to_mulaw(pcm_data)
+```
+
+### TwiML Response Helpers
+
+```python
+from vision_agents.plugins import twilio
+
+# Create TwiML for media streaming
+twiml = twilio.create_media_stream_twiml(
+    websocket_url="wss://your-domain.com/media"
+)
+
+# Or use the response helper
+response = twilio.create_media_stream_response(
+    websocket_url="wss://your-domain.com/media"
+)
+```
+
+### Signature Verification
+
+Verify Twilio webhook requests:
+
+```python
+from vision_agents.plugins.twilio import (
+    verify_twilio_signature,
+    TwilioSignatureVerifier
+)
+
+# Verify a webhook request
+is_valid = verify_twilio_signature(
+    auth_token="your_auth_token",
+    signature=request.headers["X-Twilio-Signature"],
+    url="https://your-domain.com/voice",
+    params=request.form
+)
+
+# Or use the verifier class
+verifier = TwilioSignatureVerifier(auth_token="your_auth_token")
+is_valid = verifier.verify(
+    signature=request.headers["X-Twilio-Signature"],
+    url="https://your-domain.com/voice",
+    params=request.form
+)
+```
+
+## API Reference
+
+### TwilioCallRegistry
+
+```python
+registry = TwilioCallRegistry()
+
+registry.create(call_sid: str, form_data: dict) -> TwilioCall
+registry.get(call_sid: str) -> TwilioCall | None
+registry.remove(call_sid: str) -> TwilioCall | None
+registry.list_active() -> list[TwilioCall]
+```
+
+### TwilioMediaStream
+
+```python
+stream = TwilioMediaStream(websocket: WebSocket)
+
+await stream.accept()
+await stream.send_audio(pcm_data: bytes)
+await stream.run()
+
+stream.audio_track  # AudioStreamTrack at 8kHz
+```
+
+### Helper Functions
+
+```python
+# Audio conversion
+mulaw_to_pcm(mulaw_bytes: bytes) -> bytes
+pcm_to_mulaw(pcm_data: bytes) -> bytes
+
+# TwiML helpers
+create_media_stream_twiml(websocket_url: str) -> str
+create_media_stream_response(websocket_url: str) -> Response
+
+# Signature verification
+verify_twilio_signature(
+    auth_token: str,
+    signature: str,
+    url: str,
+    params: dict
+) -> bool
+
+# Phone to call attachment
+await attach_phone_to_call(
+    stream: TwilioMediaStream,
+    agent: Agent
+) -> TwilioCall
+```
+
+## Configuration
+
+### Environment Variables
+
+```bash
+TWILIO_ACCOUNT_SID=your_twilio_account_sid_here
+TWILIO_AUTH_TOKEN=your_twilio_auth_token_here
+```
+
+### Audio Settings
+
+| Parameter | Value | Description |
+|-----------|-------|-------------|
+| Sample Rate | 8000 Hz | Twilio audio sample rate |
+| Format | mulaw | Audio encoding format |
+| Channels | 1 | Mono audio |
+
+## WebSocket Message Format
+
+Twilio Media Streams use a specific message format. The plugin handles this automatically, but for reference:
+
+```json
+{
+  "event": "media",
+  "streamSid": "MZ123...",
+  "media": {
+    "payload": "base64_encoded_mulaw"
+  }
+}
+```
+
+## Dependencies
+
+- `vision-agents` - Core framework
+- `twilio` - Twilio SDK
+- `numpy` - Audio processing
+- `fastapi` - Web framework (for webhook handlers)
+- `websockets` - WebSocket support
+
+## References
+
+- [Twilio Media Streams](https://www.twilio.com/docs/voice/twiml/stream)
+- [Twilio Voice Webhooks](https://www.twilio.com/docs/voice/webhooks)
+- [TwiML Documentation](https://www.twilio.com/docs/voice/twiml)
+- Plugin Source: `plugins/twilio/vision_agents/plugins/twilio/__init__.py`

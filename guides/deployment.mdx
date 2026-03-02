@@ -1,0 +1,491 @@
+---
+title: Deployment
+description: Deploy Vision Agents to production environments
+---
+
+Deploy your agents to production with FastAPI servers, containerization, and distributed hosting.
+
+## HTTP Server Mode
+
+Run agents as HTTP servers for production:
+
+```python
+from vision_agents.core import Agent, AgentLauncher, Runner, User
+from vision_agents.plugins import getstream, gemini, deepgram, elevenlabs
+
+async def create_agent(**kwargs) -> Agent:
+    return Agent(
+        edge=getstream.Edge(),
+        agent_user=User(name="AI Assistant", id="agent"),
+        instructions="You're a helpful AI assistant.",
+        llm=gemini.LLM("gemini-2.5-flash-lite"),
+        tts=elevenlabs.TTS(),
+        stt=deepgram.STT(eager_turn_detection=True),
+    )
+
+async def join_call(agent: Agent, call_type: str, call_id: str, **kwargs) -> None:
+    call = await agent.create_call(call_type, call_id)
+    async with agent.join(call):
+        await agent.simple_response("Hello!")
+        await agent.finish()
+
+if __name__ == "__main__":
+    Runner(AgentLauncher(
+        create_agent=create_agent,
+        join_call=join_call
+    )).cli()
+```
+
+Run as HTTP server:
+
+```bash
+uv run python agent.py serve --host=0.0.0.0 --port=8000
+```
+
+The server exposes these endpoints:
+
+- `POST /create_call` - Create a new call and join it with the agent
+- `GET /health` - Health check endpoint
+
+## FastAPI Integration
+
+For more control, use FastAPI directly:
+
+```python
+import asyncio
+import uuid
+from fastapi import FastAPI, HTTPException
+from pydantic import BaseModel
+from vision_agents.core import Agent, User
+from vision_agents.plugins import getstream, gemini, deepgram, elevenlabs
+
+app = FastAPI()
+
+class CreateCallRequest(BaseModel):
+    call_type: str = "default"
+    call_id: str | None = None
+
+async def create_agent() -> Agent:
+    return Agent(
+        edge=getstream.Edge(),
+        agent_user=User(name="AI Assistant", id="agent"),
+        instructions="You're a helpful AI assistant.",
+        llm=gemini.LLM("gemini-2.5-flash-lite"),
+        tts=elevenlabs.TTS(),
+        stt=deepgram.STT(eager_turn_detection=True),
+    )
+
+@app.post("/create_call")
+async def create_call_endpoint(request: CreateCallRequest):
+    call_id = request.call_id or str(uuid.uuid4())
+    agent = await create_agent()
+    
+    # Create and join call in background
+    async def run_agent():
+        call = await agent.create_call(request.call_type, call_id)
+        async with agent.join(call):
+            await agent.simple_response("Hello! How can I help you?")
+            await agent.finish()
+    
+    asyncio.create_task(run_agent())
+    
+    return {
+        "call_id": call_id,
+        "call_type": request.call_type,
+        "status": "created"
+    }
+
+@app.get("/health")
+async def health_check():
+    return {"status": "healthy"}
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)
+```
+
+## Environment Configuration
+
+Use environment variables for configuration:
+
+```bash
+# .env file
+STREAM_API_KEY=your_stream_api_key
+STREAM_API_SECRET=your_stream_api_secret
+
+GOOGLE_API_KEY=your_google_api_key
+OPENAI_API_KEY=your_openai_api_key
+ANTHROPIC_API_KEY=your_anthropic_api_key
+
+DEEPGRAM_API_KEY=your_deepgram_api_key
+ELEVENLABS_API_KEY=your_elevenlabs_api_key
+CARTESIA_API_KEY=your_cartesia_api_key
+
+TWILIO_ACCOUNT_SID=your_twilio_sid
+TWILIO_AUTH_TOKEN=your_twilio_token
+
+TURBO_PUFFER_KEY=your_turbopuffer_key
+
+# Optional
+LOG_LEVEL=INFO
+ENVIRONMENT=production
+```
+
+Load with `python-dotenv`:
+
+```python
+from dotenv import load_dotenv
+import os
+
+load_dotenv()
+
+api_key = os.environ["STREAM_API_KEY"]
+```
+
+## Docker Deployment
+
+Create a `Dockerfile`:
+
+```dockerfile
+FROM python:3.12-slim
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    libopus0 \
+    libvpx-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install uv
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
+
+# Set working directory
+WORKDIR /app
+
+# Copy dependency files
+COPY pyproject.toml uv.lock ./
+
+# Install dependencies
+RUN uv sync --frozen --no-dev
+
+# Copy application code
+COPY . .
+
+# Expose port
+EXPOSE 8000
+
+# Run the application
+CMD ["uv", "run", "python", "agent.py", "serve", "--host=0.0.0.0", "--port=8000"]
+```
+
+Create `docker-compose.yml`:
+
+```yaml
+version: '3.8'
+
+services:
+  agent:
+    build: .
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+```
+
+Build and run:
+
+```bash
+docker-compose up -d
+```
+
+## Kubernetes Deployment
+
+Create `deployment.yaml`:
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vision-agent
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: vision-agent
+  template:
+    metadata:
+      labels:
+        app: vision-agent
+    spec:
+      containers:
+      - name: agent
+        image: your-registry/vision-agent:latest
+        ports:
+        - containerPort: 8000
+        env:
+        - name: STREAM_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: vision-agent-secrets
+              key: stream-api-key
+        - name: OPENAI_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: vision-agent-secrets
+              key: openai-api-key
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "500m"
+          limits:
+            memory: "2Gi"
+            cpu: "2000m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 10
+          periodSeconds: 5
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: vision-agent
+spec:
+  selector:
+    app: vision-agent
+  ports:
+  - port: 80
+    targetPort: 8000
+  type: LoadBalancer
+```
+
+Create secrets:
+
+```bash
+kubectl create secret generic vision-agent-secrets \
+  --from-literal=stream-api-key=your_key \
+  --from-literal=openai-api-key=your_key
+```
+
+Deploy:
+
+```bash
+kubectl apply -f deployment.yaml
+```
+
+## Regional Deployment
+
+Deploy agents close to users for optimal latency:
+
+<CodeGroup>
+```python Fly.io
+# fly.toml
+app = "vision-agent"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[[services]]
+  internal_port = 8000
+  protocol = "tcp"
+
+  [[services.ports]]
+    handlers = ["http"]
+    port = 80
+
+  [[services.ports]]
+    handlers = ["tls", "http"]
+    port = 443
+
+[env]
+  ENVIRONMENT = "production"
+
+# Deploy to multiple regions
+# fly scale count 2 --region iad,lhr
+```
+
+```python Digital Ocean
+# Deploy to multiple regions via App Platform
+# Use DO's load balancer for multi-region routing
+
+name: vision-agent
+region: nyc
+services:
+- name: agent
+  dockerfile_path: Dockerfile
+  health_check:
+    http_path: /health
+  http_port: 8000
+  instance_count: 2
+  instance_size_slug: professional-xs
+  envs:
+  - key: ENVIRONMENT
+    value: production
+```
+
+```python AWS
+# Use ECS Fargate with ALB
+# Deploy to multiple regions with Route53 latency routing
+
+# task-definition.json
+{
+  "family": "vision-agent",
+  "containerDefinitions": [{
+    "name": "agent",
+    "image": "your-ecr-repo/vision-agent:latest",
+    "portMappings": [{
+      "containerPort": 8000,
+      "protocol": "tcp"
+    }],
+    "environment": [
+      {"name": "ENVIRONMENT", "value": "production"}
+    ],
+    "secrets": [
+      {"name": "STREAM_API_KEY", "valueFrom": "arn:aws:secretsmanager:..."}
+    ]
+  }]
+}
+```
+</CodeGroup>
+
+## Production Best Practices
+
+<Steps>
+  <Step title="Use Process Managers">
+    ```bash
+    # With supervisord
+    [program:vision-agent]
+    command=uv run python agent.py serve --host=0.0.0.0 --port=8000
+    directory=/app
+    autostart=true
+    autorestart=true
+    stderr_logfile=/var/log/vision-agent.err.log
+    stdout_logfile=/var/log/vision-agent.out.log
+    ```
+  </Step>
+  
+  <Step title="Configure Logging">
+    ```python
+    import logging
+    import sys
+    
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+        handlers=[
+            logging.StreamHandler(sys.stdout),
+            logging.FileHandler('agent.log'),
+        ]
+    )
+    ```
+  </Step>
+  
+  <Step title="Health Checks">
+    ```python
+    @app.get("/health")
+    async def health_check():
+        # Check dependencies
+        try:
+            # Test Stream connection
+            edge_client = getstream.Edge()
+            # Test LLM
+            # etc.
+            return {"status": "healthy"}
+        except Exception as e:
+            raise HTTPException(status_code=503, detail=str(e))
+    ```
+  </Step>
+  
+  <Step title="Monitor Performance">
+    See [Observability](/guides/observability) for metrics and tracing.
+  </Step>
+  
+  <Step title="Graceful Shutdown">
+    ```python
+    import signal
+    import asyncio
+    
+    shutdown_event = asyncio.Event()
+    
+    def signal_handler(sig, frame):
+        print("Shutting down gracefully...")
+        shutdown_event.set()
+    
+    signal.signal(signal.SIGINT, signal_handler)
+    signal.signal(signal.SIGTERM, signal_handler)
+    
+    async def run_agent():
+        agent = await create_agent()
+        # ...
+        await shutdown_event.wait()
+        await agent.close()
+    ```
+  </Step>
+</Steps>
+
+## Security Considerations
+
+- **Never commit secrets**: Use environment variables or secret managers
+- **Validate input**: Always validate call IDs, user input, webhooks
+- **Rate limiting**: Implement rate limits for API endpoints
+- **HTTPS only**: Always use HTTPS in production
+- **Webhook signatures**: Verify Twilio webhook signatures
+
+```python
+from vision_agents.plugins import twilio
+
+@app.post("/twilio/voice")
+async def twilio_webhook(
+    _: None = Depends(twilio.verify_twilio_signature),  # Verifies signature
+    data: twilio.CallWebhookInput = Depends(twilio.CallWebhookInput.as_form),
+):
+    # Signature verified, safe to proceed
+    ...
+```
+
+## Scaling Considerations
+
+- **Horizontal scaling**: Run multiple agent instances behind a load balancer
+- **Resource limits**: Set appropriate CPU/memory limits
+- **Connection pooling**: Reuse HTTP connections to AI providers
+- **Caching**: Cache RAG embeddings and frequently used resources
+- **Async operations**: All I/O is async for high concurrency
+
+## Example Deployment Commands
+
+```bash
+# Development
+uv run python agent.py run --call-type default --call-id test-123
+
+# Production (HTTP server)
+uv run python agent.py serve --host=0.0.0.0 --port=8000
+
+# Docker
+docker build -t vision-agent .
+docker run -p 8000:8000 --env-file .env vision-agent
+
+# Docker Compose
+docker-compose up -d
+
+# Kubernetes
+kubectl apply -f deployment.yaml
+```
+
+## Next Steps
+
+- Monitor agents: [Observability](/guides/observability)
+- Review complete examples in `examples/`
+- Check DEVELOPMENT.md for development guidelines

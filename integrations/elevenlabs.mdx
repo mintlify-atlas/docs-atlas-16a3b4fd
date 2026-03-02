@@ -1,0 +1,226 @@
+---
+title: "ElevenLabs"
+description: "Premium text-to-speech with natural, expressive voices"
+---
+
+The ElevenLabs plugin provides high-quality text-to-speech capabilities with some of the most natural-sounding AI voices available.
+
+## Installation
+
+```bash
+uv add vision-agents-plugins-elevenlabs
+```
+
+Alternatively:
+
+```bash
+pip install getstream-plugins-elevenlabs
+```
+
+## Authentication
+
+Set your API key in the environment:
+
+```bash
+export ELEVENLABS_API_KEY=your_elevenlabs_api_key
+export ELEVENLABS_VOICE_ID=voice_id_to_use  # Optional
+```
+
+## Components
+
+### TTS - Text-to-Speech
+
+Convert text to natural-sounding speech:
+
+```python
+from vision_agents.plugins import elevenlabs
+
+tts = elevenlabs.TTS(
+    api_key="your_elevenlabs_api_key",  # Optional if env var set
+    voice_id="VR6AewLTigWG4xSOukaG",
+    model_id="eleven_multilingual_v2"
+)
+
+# Use in an agent
+agent = Agent(
+    tts=tts,
+    # ... other config
+)
+```
+
+<ParamField path="api_key" type="string">
+  ElevenLabs API key. Defaults to `ELEVENLABS_API_KEY` environment variable
+</ParamField>
+
+<ParamField path="voice_id" type="string" default="VR6AewLTigWG4xSOukaG">
+  The voice ID to use for synthesis. Browse voices at [ElevenLabs Voice Library](https://elevenlabs.io/voice-library)
+</ParamField>
+
+<ParamField path="model_id" type="string" default="eleven_multilingual_v2">
+  The model ID for synthesis:
+  - `eleven_multilingual_v2` - Multilingual, high quality
+  - `eleven_turbo_v2` - Fastest, English optimized
+  - `eleven_monolingual_v1` - English only
+</ParamField>
+
+### STT - Speech-to-Text
+
+<Note>
+ElevenLabs also provides STT capabilities:
+</Note>
+
+```python
+from vision_agents.plugins import elevenlabs
+
+stt = elevenlabs.STT()
+
+# Use in an agent
+agent = Agent(
+    stt=stt,
+    # ... other config
+)
+```
+
+## Usage Examples
+
+### Basic Voice Agent
+
+```python
+from vision_agents.core import Agent, User
+from vision_agents.plugins import elevenlabs, deepgram, gemini, getstream
+
+agent = Agent(
+    edge=getstream.Edge(),
+    agent_user=User(name="Voice Assistant"),
+    instructions="You are a friendly and helpful assistant.",
+    llm=gemini.LLM(model="gemini-3-flash-preview"),
+    stt=deepgram.STT(),
+    tts=elevenlabs.TTS()
+)
+```
+
+### With Custom Voice
+
+```python
+from vision_agents.plugins import elevenlabs
+
+# Use a specific voice from ElevenLabs library
+tts = elevenlabs.TTS(
+    voice_id="21m00Tcm4TlvDq8ikWAM",  # Rachel
+    model_id="eleven_multilingual_v2"
+)
+
+agent = Agent(
+    tts=tts,
+    # ... other config
+)
+```
+
+### With Turbo Model for Speed
+
+```python
+from vision_agents.plugins import elevenlabs
+
+tts = elevenlabs.TTS(
+    voice_id="VR6AewLTigWG4xSOukaG",
+    model_id="eleven_turbo_v2"  # Faster synthesis
+)
+```
+
+### Set Output Track Manually
+
+```python
+from vision_agents.plugins import elevenlabs
+from getstream.video.rtc.audio_track import AudioStreamTrack
+
+tts = elevenlabs.TTS()
+
+# Create an audio track
+track = AudioStreamTrack(framerate=16000)
+tts.set_output_track(track)
+
+# Send text to synthesize
+await tts.send("Hello, this is a test of ElevenLabs text-to-speech.")
+```
+
+### Listen to Audio Events
+
+```python
+tts = elevenlabs.TTS()
+
+@tts.on("audio")
+def on_audio(audio_data, user):
+    print(f"Received audio chunk: {len(audio_data)} bytes")
+
+await tts.send("This will trigger the audio event.")
+```
+
+## Voice Selection
+
+ElevenLabs offers a wide variety of voices. Find voices at:
+- [ElevenLabs Voice Library](https://elevenlabs.io/voice-library)
+- [Voice Lab](https://elevenlabs.io/voice-lab) - Create custom voices
+
+Popular voice IDs:
+- `21m00Tcm4TlvDq8ikWAM` - Rachel (female, calm)
+- `VR6AewLTigWG4xSOukaG` - Default (female)
+- `pNInz6obpgDQGcFmaJgB` - Adam (male, deep)
+- `EXAVITQu4vr4xnSDxMaL` - Bella (female, soft)
+
+## Model Selection
+
+| Model | Best For | Speed | Languages |
+|-------|----------|-------|-----------|
+| `eleven_turbo_v2` | Fast responses | Fastest | English |
+| `eleven_multilingual_v2` | Quality & languages | Medium | 29+ languages |
+| `eleven_monolingual_v1` | English quality | Medium | English only |
+
+## Configuration
+
+### Environment Variables
+
+```bash
+ELEVENLABS_API_KEY=your_elevenlabs_api_key_here
+ELEVENLABS_VOICE_ID=voice_id_to_use
+```
+
+### Quality vs Speed Trade-offs
+
+**For Best Quality:**
+```python
+tts = elevenlabs.TTS(
+    model_id="eleven_multilingual_v2",
+    voice_id="your_preferred_voice"
+)
+```
+
+**For Fastest Response:**
+```python
+tts = elevenlabs.TTS(
+    model_id="eleven_turbo_v2",
+    voice_id="your_preferred_voice"
+)
+```
+
+## Features
+
+- Natural, expressive voices
+- Low-latency streaming
+- Multilingual support (29+ languages)
+- Custom voice cloning (on ElevenLabs platform)
+- Voice design and fine-tuning
+- Emotion and style control
+
+## API Details
+
+The plugin uses ElevenLabs API v1:
+- WebSocket streaming for low latency
+- Automatic chunking for real-time playback
+- Event-based audio delivery
+
+## References
+
+- [ElevenLabs API Documentation](https://elevenlabs.io/docs/api-reference)
+- [Voice Library](https://elevenlabs.io/voice-library)
+- [Pricing](https://elevenlabs.io/pricing)
+- Plugin Source: `plugins/elevenlabs/vision_agents/plugins/elevenlabs/__init__.py`

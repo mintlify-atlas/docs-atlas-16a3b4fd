@@ -1,0 +1,189 @@
+---
+title: "Gemini"
+description: "Google Gemini integration for multimodal AI with vision, speech, and text"
+---
+
+The Gemini plugin provides access to Google's latest multimodal AI models, including Gemini 3 with advanced vision and speech capabilities.
+
+## Installation
+
+```bash
+uv add vision-agents[gemini]
+```
+
+## Authentication
+
+Set your API key in the environment:
+
+```bash
+export GOOGLE_API_KEY=your_google_api_key
+# Or alternatively:
+export GEMINI_API_KEY=your_gemini_api_key
+```
+
+## Components
+
+### LLM - Text Generation
+
+Use Gemini models for text-based conversations:
+
+```python
+from vision_agents.plugins import gemini
+from vision_agents.core import Agent, User
+
+llm = gemini.LLM(
+    model="gemini-3-pro-preview",
+    thinking_level=gemini.ThinkingLevel.HIGH,
+    media_resolution=gemini.MediaResolution.MEDIA_RESOLUTION_HIGH
+)
+
+agent = Agent(
+    llm=llm,
+    agent_user=User(name="AI Assistant"),
+    instructions="You are a helpful assistant."
+)
+```
+
+<ParamField path="model" type="string" default="gemini-3-pro-preview">
+  The Gemini model to use. Options include `gemini-3-pro-preview`, `gemini-3-flash-preview`
+</ParamField>
+
+<ParamField path="api_key" type="string">
+  Optional API key. Defaults to `GOOGLE_API_KEY` or `GEMINI_API_KEY` environment variable
+</ParamField>
+
+<ParamField path="thinking_level" type="ThinkingLevel">
+  Optional thinking level for Gemini 3. Use `ThinkingLevel.LOW` or `ThinkingLevel.HIGH` for complex reasoning
+</ParamField>
+
+<ParamField path="media_resolution" type="MediaResolution">
+  Resolution for multimodal processing:
+  - `MEDIA_RESOLUTION_LOW` - Fast processing
+  - `MEDIA_RESOLUTION_MEDIUM` - Balanced (recommended for PDFs)
+  - `MEDIA_RESOLUTION_HIGH` - Best quality (recommended for images)
+</ParamField>
+
+### VLM - Vision Language Model
+
+Use Gemini's vision capabilities to analyze video frames:
+
+```python
+from vision_agents.plugins import gemini, deepgram, elevenlabs, getstream
+from vision_agents.core import Agent, User
+
+vlm = gemini.VLM(
+    model="gemini-3-flash-preview",
+    fps=1,
+    frame_buffer_seconds=10,
+    thinking_level=gemini.ThinkingLevel.HIGH
+)
+
+agent = Agent(
+    edge=getstream.Edge(),
+    agent_user=User(name="Vision Agent"),
+    instructions="Describe what you see in the video.",
+    llm=vlm,
+    stt=deepgram.STT(),
+    tts=elevenlabs.TTS()
+)
+```
+
+<ParamField path="model" type="string" default="gemini-3-flash-preview">
+  Vision model to use
+</ParamField>
+
+<ParamField path="fps" type="int" default="1">
+  Frame rate for video processing (frames per second)
+</ParamField>
+
+<ParamField path="frame_buffer_seconds" type="int" default="10">
+  Number of seconds of video frames to buffer
+</ParamField>
+
+### Realtime - Speech-to-Speech
+
+Direct speech-to-speech with Gemini Live:
+
+```python
+from vision_agents.plugins import gemini, getstream
+from vision_agents.core import Agent, User
+
+realtime = gemini.Realtime(
+    model="gemini-live-2.5-flash-preview"
+)
+
+agent = Agent(
+    edge=getstream.Edge(),
+    agent_user=User(name="Voice Assistant"),
+    instructions="Speak naturally and help users.",
+    llm=realtime
+)
+```
+
+## Built-in Tools
+
+Gemini supports several built-in tools via the `tools` parameter:
+
+```python
+from vision_agents.plugins import gemini
+
+# File search for RAG
+store = gemini.create_file_search_store(
+    display_name="Knowledge Base"
+)
+
+llm = gemini.LLM(
+    model="gemini-3-pro-preview",
+    tools=[gemini.tools.FileSearch(store)]
+)
+
+# Or use the RAG wrapper directly
+rag = gemini.GeminiFilesearchRAG(store)
+await rag.add_directory("./knowledge")
+```
+
+### Available Built-in Tools
+
+- `tools.FileSearch(store)` - RAG over your documents
+- `tools.GoogleSearch()` - Ground responses with web data
+- `tools.CodeExecution()` - Run Python code
+- `tools.URLContext()` - Read specific web pages
+- `tools.GoogleMaps()` - Location-aware queries (Preview)
+- `tools.ComputerUse()` - Browser automation (Preview)
+
+See [Gemini Tools Documentation](https://ai.google.dev/gemini-api/docs/tools) for details.
+
+## Function Calling
+
+Register custom functions for the model to call:
+
+```python
+from vision_agents.plugins import gemini
+
+llm = gemini.LLM()
+
+@llm.register_function(
+    name="get_weather",
+    description="Get current weather for a city"
+)
+def get_weather(city: str) -> dict:
+    return {
+        "city": city,
+        "temperature": 72,
+        "condition": "Sunny"
+    }
+```
+
+## Migration from Gemini 2.5
+
+When upgrading to Gemini 3:
+
+- **Thinking**: Replace complex prompts with `thinking_level="high"`
+- **Temperature**: Remove explicit low temperature settings to avoid looping
+- **PDFs**: Test with `media_resolution="high"` for dense documents
+- **Token Usage**: May increase for PDFs but decrease for video
+
+## References
+
+- [Gemini API Documentation](https://ai.google.dev/gemini-api/docs)
+- Plugin Source: `plugins/gemini/vision_agents/plugins/gemini/__init__.py`

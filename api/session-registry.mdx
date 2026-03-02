@@ -1,0 +1,284 @@
+---
+title: SessionRegistry
+description: Stateless facade over shared storage for multi-node session management
+---
+
+## Overview
+
+The `SessionRegistry` is a stateless facade over shared storage that handles multi-node session management. It manages serialization, key naming, and TTL (time-to-live) management without holding any session state. The caller (typically `AgentLauncher`) owns all session tracking and drives refreshes.
+
+When no storage backend is provided, an `InMemorySessionKVStore` is used by default, which is suitable for single-node or development environments.
+
+## Constructor
+
+```python
+SessionRegistry(
+    store: SessionKVStore | None = None,
+    *,
+    node_id: str | None = None,
+    ttl: float = 30.0
+)
+```
+
+<ParamField path="store" type="SessionKVStore | None" default="None">
+  Storage backend for session data. If not provided, uses `InMemorySessionKVStore` by default.
+</ParamField>
+
+<ParamField path="node_id" type="str | None" default="None">
+  Unique identifier for this node. If not provided, a UUID will be generated.
+</ParamField>
+
+<ParamField path="ttl" type="float" default="30.0">
+  Time-to-live in seconds for session records. Must be greater than 0.
+</ParamField>
+
+## Properties
+
+### node_id
+
+```python
+@property
+node_id: str
+```
+
+Returns the unique identifier for this node.
+
+## Lifecycle Methods
+
+### start
+
+```python
+async def start() -> None
+```
+
+Initialize the storage backend. Should be called before using the registry.
+
+### stop
+
+```python
+async def stop() -> None
+```
+
+Close the storage backend and clean up resources.
+
+## Session Management Methods
+
+### register
+
+```python
+async def register(call_id: str, session_id: str) -> None
+```
+
+Write a new session record to storage.
+
+<ParamField path="call_id" type="str" required>
+  The call identifier associated with this session.
+</ParamField>
+
+<ParamField path="session_id" type="str" required>
+  Unique identifier for the session.
+</ParamField>
+
+### remove
+
+```python
+async def remove(call_id: str, session_id: str) -> None
+```
+
+Delete all storage keys for a session.
+
+<ParamField path="call_id" type="str" required>
+  The call identifier associated with this session.
+</ParamField>
+
+<ParamField path="session_id" type="str" required>
+  Unique identifier for the session to remove.
+</ParamField>
+
+### get
+
+```python
+async def get(call_id: str, session_id: str) -> SessionInfo | None
+```
+
+Look up a session by ID from shared storage.
+
+<ParamField path="call_id" type="str" required>
+  The call identifier associated with this session.
+</ParamField>
+
+<ParamField path="session_id" type="str" required>
+  Unique identifier for the session.
+</ParamField>
+
+**Returns:** `SessionInfo | None` - Session information if found, None otherwise.
+
+### get_for_call
+
+```python
+async def get_for_call(call_id: str) -> list[SessionInfo]
+```
+
+Return all sessions for a given call across all nodes.
+
+<ParamField path="call_id" type="str" required>
+  The call identifier to retrieve sessions for.
+</ParamField>
+
+**Returns:** `list[SessionInfo]` - List of all sessions associated with the call.
+
+## Metrics Methods
+
+### update_metrics
+
+```python
+async def update_metrics(
+    call_id: str,
+    session_id: str,
+    metrics: dict[str, int | float | None]
+) -> None
+```
+
+Push updated metrics for a session into storage.
+
+<ParamField path="call_id" type="str" required>
+  The call identifier associated with this session.
+</ParamField>
+
+<ParamField path="session_id" type="str" required>
+  Unique identifier for the session.
+</ParamField>
+
+<ParamField path="metrics" type="dict[str, int | float | None]" required>
+  Metrics data to update for the session.
+</ParamField>
+
+### refresh
+
+```python
+async def refresh(sessions: dict[str, str]) -> None
+```
+
+Refresh TTLs for the given sessions.
+
+<ParamField path="sessions" type="dict[str, str]" required>
+  Mapping of session_id to call_id.
+</ParamField>
+
+## Close Request Methods
+
+### request_close
+
+```python
+async def request_close(call_id: str, session_id: str) -> None
+```
+
+Set a close flag for a session, enabling asynchronous close from any node.
+
+<ParamField path="call_id" type="str" required>
+  The call identifier associated with this session.
+</ParamField>
+
+<ParamField path="session_id" type="str" required>
+  Unique identifier for the session to close.
+</ParamField>
+
+### get_close_requests
+
+```python
+async def get_close_requests(sessions: dict[str, str]) -> list[str]
+```
+
+Return session IDs that have a pending close request.
+
+<ParamField path="sessions" type="dict[str, str]" required>
+  Mapping of session_id to call_id.
+</ParamField>
+
+**Returns:** `list[str]` - List of session IDs with pending close requests.
+
+## Context Manager Support
+
+The `SessionRegistry` supports async context manager protocol:
+
+```python
+async with SessionRegistry(store=my_store) as registry:
+    await registry.register("call_123", "session_456")
+    # ... use registry
+# Automatically calls start() on enter and stop() on exit
+```
+
+## Data Structures
+
+### SessionInfo
+
+```python
+@dataclass
+class SessionInfo:
+    session_id: str
+    call_id: str
+    node_id: str
+    started_at: float
+    metrics_updated_at: float
+    metrics: dict[str, int | float | None] = field(default_factory=dict)
+```
+
+Represents a session registered in the session registry.
+
+<ParamField path="session_id" type="str">
+  Unique identifier for the session.
+</ParamField>
+
+<ParamField path="call_id" type="str">
+  The call identifier associated with this session.
+</ParamField>
+
+<ParamField path="node_id" type="str">
+  Identifier of the node hosting this session.
+</ParamField>
+
+<ParamField path="started_at" type="float">
+  Timestamp (Unix time) when the session was started.
+</ParamField>
+
+<ParamField path="metrics_updated_at" type="float">
+  Timestamp (Unix time) when metrics were last updated.
+</ParamField>
+
+<ParamField path="metrics" type="dict[str, int | float | None]">
+  Dictionary of metric names to values.
+</ParamField>
+
+#### from_dict
+
+```python
+@classmethod
+from_dict(cls, data: dict[str, Any]) -> SessionInfo
+```
+
+Construct a SessionInfo from a dictionary, silently ignoring unknown keys.
+
+<ParamField path="data" type="dict[str, Any]" required>
+  Dictionary containing session information.
+</ParamField>
+
+**Returns:** `SessionInfo` - Constructed SessionInfo instance.
+
+## Usage Example
+
+```python
+from vision_agents.core.agents.session_registry import SessionRegistry
+from vision_agents.core.agents.session_registry import RedisSessionKVStore
+
+# For single-node (development)
+async with SessionRegistry() as registry:
+    await registry.register("call_123", "session_456")
+    info = await registry.get("call_123", "session_456")
+    print(f"Session started at: {info.started_at}")
+
+# For multi-node (production)
+redis_store = RedisSessionKVStore(url="redis://localhost:6379/0")
+async with SessionRegistry(store=redis_store, node_id="node-1") as registry:
+    await registry.register("call_123", "session_789")
+    await registry.update_metrics("call_123", "session_789", {"tokens": 150})
+```

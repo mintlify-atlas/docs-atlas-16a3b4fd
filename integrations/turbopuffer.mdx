@@ -1,0 +1,328 @@
+---
+title: "TurboPuffer"
+description: "Hybrid vector + BM25 search for retrieval-augmented generation (RAG)"
+---
+
+The TurboPuffer plugin provides hybrid search capabilities combining vector (semantic) and BM25 (keyword) search for high-quality RAG.
+
+## Installation
+
+```bash
+uv add vision-agents[turbopuffer]
+```
+
+## Authentication
+
+Set your API keys in the environment:
+
+```bash
+export TURBO_PUFFER_KEY=your_turbopuffer_api_key
+export GOOGLE_API_KEY=your_google_api_key  # For Gemini embeddings
+```
+
+## Components
+
+### TurboPufferRAG
+
+Hybrid search RAG implementation:
+
+```python
+from vision_agents.plugins import turbopuffer
+
+# Initialize RAG
+rag = turbopuffer.TurboPufferRAG(namespace="my-knowledge")
+
+# Add documents from directory
+await rag.add_directory("./knowledge")
+
+# Search with hybrid mode (default)
+results = await rag.search("How does the chat API work?")
+
+# Vector-only search
+results = await rag.search(
+    "How does the chat API work?",
+    mode="vector"
+)
+
+# BM25-only search
+results = await rag.search(
+    "chat API pricing",
+    mode="bm25"
+)
+```
+
+<ParamField path="namespace" type="string" required>
+  TurboPuffer namespace for storing vectors. Used to organize different knowledge bases.
+</ParamField>
+
+<ParamField path="embedding_model" type="string" default="models/gemini-embedding-001">
+  Gemini embedding model for vector generation
+</ParamField>
+
+<ParamField path="chunk_size" type="int" default="10000">
+  Size of text chunks for splitting documents
+</ParamField>
+
+<ParamField path="chunk_overlap" type="int" default="200">
+  Overlap between chunks for context continuity
+</ParamField>
+
+<ParamField path="region" type="string" default="gcp-us-central1">
+  TurboPuffer region for data storage
+</ParamField>
+
+## Usage Examples
+
+### Quick Start
+
+```python
+from vision_agents.plugins import turbopuffer
+
+# Create RAG and add knowledge
+rag = await turbopuffer.create_rag(
+    namespace="product-knowledge",
+    knowledge_dir="./knowledge"
+)
+
+# Search
+results = await rag.search("What features are available?")
+for result in results:
+    print(result.content)
+```
+
+### With Custom Configuration
+
+```python
+from vision_agents.plugins import turbopuffer
+
+rag = turbopuffer.TurboPufferRAG(
+    namespace="support-docs",
+    embedding_model="models/gemini-embedding-001",
+    chunk_size=5000,
+    chunk_overlap=100,
+    region="gcp-us-central1"
+)
+
+await rag.add_directory("./docs")
+```
+
+### Different Search Modes
+
+```python
+# Hybrid search (best for most queries)
+results = await rag.search(
+    "How do I authenticate?",
+    mode="hybrid"  # default
+)
+
+# Vector search (for semantic similarity)
+results = await rag.search(
+    "authentication methods",
+    mode="vector"
+)
+
+# BM25 search (for keyword matching)
+results = await rag.search(
+    "API key authentication",
+    mode="bm25"
+)
+```
+
+### Use with Agent
+
+```python
+from vision_agents.core import Agent, User
+from vision_agents.plugins import turbopuffer, openai, getstream
+
+# Create RAG
+rag = await turbopuffer.create_rag(
+    namespace="docs",
+    knowledge_dir="./knowledge"
+)
+
+# Create agent with RAG
+agent = Agent(
+    edge=getstream.Edge(),
+    agent_user=User(name="Support Agent"),
+    instructions="Answer questions using the knowledge base.",
+    llm=openai.LLM("gpt-4.1"),
+    rag=rag
+)
+```
+
+## Search Modes
+
+### Hybrid (Default)
+
+Combines vector and BM25 search using Reciprocal Rank Fusion:
+- Best for general queries
+- Balances semantic and keyword matching
+- Recommended for most use cases
+
+```python
+results = await rag.search("query", mode="hybrid")
+```
+
+### Vector Only
+
+Semantic similarity search:
+- Best for conceptual queries
+- Finds related content even with different wording
+- Good for "fuzzy" searches
+
+```python
+results = await rag.search("query", mode="vector")
+```
+
+### BM25 Only
+
+Keyword-based search:
+- Best for exact term matching
+- Good for technical queries with specific terms
+- Fast and precise for known keywords
+
+```python
+results = await rag.search("query", mode="bm25")
+```
+
+## Adding Documents
+
+### From Directory
+
+```python
+# Add all text files from directory
+await rag.add_directory("./knowledge")
+
+# Supports: .txt, .md, .pdf, and more
+```
+
+### From Individual Files
+
+```python
+await rag.add_file("./docs/getting-started.md")
+await rag.add_file("./docs/api-reference.pdf")
+```
+
+### From Text Directly
+
+```python
+await rag.add_text(
+    "API keys can be generated from the dashboard.",
+    metadata={"source": "manual_entry"}
+)
+```
+
+## Cache Warming
+
+For low-latency queries, warm the cache:
+
+```python
+# Warm cache for common queries
+await rag.warm_cache([
+    "How do I get started?",
+    "What are the pricing plans?",
+    "How do I authenticate?"
+])
+```
+
+## Configuration Options
+
+### Chunk Size
+
+Controls document splitting:
+
+```python
+# Smaller chunks (more precise, more vectors)
+rag = turbopuffer.TurboPufferRAG(
+    namespace="docs",
+    chunk_size=2000,
+    chunk_overlap=200
+)
+
+# Larger chunks (more context, fewer vectors)
+rag = turbopuffer.TurboPufferRAG(
+    namespace="docs",
+    chunk_size=10000,
+    chunk_overlap=500
+)
+```
+
+### Embedding Model
+
+Use different Gemini embedding models:
+
+```python
+rag = turbopuffer.TurboPufferRAG(
+    namespace="docs",
+    embedding_model="models/gemini-embedding-001"  # Default
+)
+```
+
+### Region Selection
+
+```python
+rag = turbopuffer.TurboPufferRAG(
+    namespace="docs",
+    region="gcp-us-central1"  # Default
+)
+```
+
+## Environment Variables
+
+```bash
+# TurboPuffer
+TURBO_PUFFER_KEY=your_turbopuffer_api_key_here
+
+# Google API (for embeddings)
+GOOGLE_API_KEY=your_google_api_key_here
+```
+
+## Features
+
+- **Hybrid Search**: Combines vector and BM25 for best results
+- **Reciprocal Rank Fusion**: Intelligently merges results from multiple strategies
+- **Gemini Embeddings**: High-quality semantic vectors
+- **Fast Queries**: Low-latency search with cache warming
+- **Automatic Chunking**: Smart document splitting with overlap
+- **Multiple Formats**: Supports text, markdown, PDF, and more
+
+## Performance Tips
+
+### For Speed
+
+```python
+rag = turbopuffer.TurboPufferRAG(
+    namespace="docs",
+    chunk_size=5000,  # Fewer chunks
+    chunk_overlap=100
+)
+
+# Use BM25 for fast keyword search
+results = await rag.search("query", mode="bm25")
+```
+
+### For Quality
+
+```python
+rag = turbopuffer.TurboPufferRAG(
+    namespace="docs",
+    chunk_size=10000,  # More context
+    chunk_overlap=500
+)
+
+# Use hybrid search
+results = await rag.search("query", mode="hybrid")
+```
+
+## Dependencies
+
+- `turbopuffer` - TurboPuffer vector database client
+- `langchain-google-genai` - Gemini embeddings
+- `langchain-text-splitters` - Text chunking utilities
+
+## References
+
+- [TurboPuffer Hybrid Search Docs](https://turbopuffer.com/docs/hybrid)
+- [MTEB Embedding Leaderboard](https://huggingface.co/spaces/mteb/leaderboard)
+- [Gemini Embeddings](https://ai.google.dev/gemini-api/docs/embeddings)
+- Plugin Source: `plugins/turbopuffer/vision_agents/plugins/turbopuffer/__init__.py`

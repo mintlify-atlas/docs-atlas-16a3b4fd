@@ -1,0 +1,412 @@
+---
+title: Observability
+description: Monitor agent performance with OpenTelemetry metrics and traces
+---
+
+Vision Agents provides built-in observability through OpenTelemetry for metrics and tracing.
+
+## Quick Start
+
+Metrics are automatically collected when you configure OpenTelemetry:
+
+```python
+from opentelemetry import metrics
+from opentelemetry.sdk.metrics import MeterProvider
+from opentelemetry.exporter.prometheus import PrometheusMetricReader
+from prometheus_client import start_http_server
+
+# Configure Prometheus exporter
+reader = PrometheusMetricReader()
+provider = MeterProvider(metric_readers=[reader])
+metrics.set_meter_provider(provider)
+
+# Start Prometheus HTTP server
+start_http_server(port=9464)
+
+# Create your agent - metrics are automatically collected
+agent = Agent(
+    llm=gemini.LLM("gemini-2.5-flash-lite"),
+    stt=deepgram.STT(eager_turn_detection=True),
+    tts=elevenlabs.TTS(),
+    ...
+)
+```
+
+<Note>
+Metrics collection is **automatic** - no need to manually create a `MetricsCollector`. The framework subscribes to events internally.
+</Note>
+
+View metrics at `http://localhost:9464/metrics`.
+
+## Available Metrics
+
+### LLM Metrics
+
+- `llm_latency_ms` - Total LLM response latency (request to completion)
+- `llm_time_to_first_token_ms` - Time to first token (streaming)
+- `llm_tokens_input` - Input/prompt tokens consumed
+- `llm_tokens_output` - Output/completion tokens generated
+- `llm_tool_calls` - Function/tool calls executed
+- `llm_tool_latency_ms` - Tool execution latency
+- `llm_errors` - LLM errors
+
+### STT Metrics
+
+- `stt_latency_ms` - Speech-to-text processing latency
+- `stt_audio_duration_ms` - Duration of audio processed
+- `stt_errors` - STT errors
+
+### TTS Metrics
+
+- `tts_latency_ms` - Text-to-speech synthesis latency
+- `tts_audio_duration_ms` - Duration of synthesized audio
+- `tts_characters` - Characters synthesized
+- `tts_errors` - TTS errors
+
+### Realtime Metrics
+
+- `realtime_sessions` - Realtime LLM sessions started
+- `realtime_session_duration_ms` - Duration of realtime sessions
+- `realtime_audio_input_bytes` - Audio bytes sent to realtime LLM
+- `realtime_audio_output_bytes` - Audio bytes received from realtime LLM
+- `realtime_responses` - Realtime LLM responses received
+- `realtime_user_transcriptions` - User speech transcriptions
+- `realtime_agent_transcriptions` - Agent speech transcriptions
+- `realtime_errors` - Realtime LLM errors
+
+### Video Metrics
+
+- `video_frames_processed` - Video frames processed
+- `video_processing_latency_ms` - Frame processing latency
+- `video_detections` - Objects/items detected
+- `vlm_inferences` - Vision LLM inference requests
+- `vlm_inference_latency_ms` - VLM inference latency
+- `vlm_input_tokens` - VLM input tokens (text + image)
+- `vlm_output_tokens` - VLM output tokens
+
+### Turn Detection Metrics
+
+- `turn_duration_ms` - Duration of detected turns
+- `turn_trailing_silence_ms` - Trailing silence before turn end
+
+## Complete Example
+
+```python
+import logging
+import sys
+from opentelemetry import metrics
+from opentelemetry.sdk.metrics import MeterProvider
+from opentelemetry.exporter.prometheus import PrometheusMetricReader
+from prometheus_client import start_http_server
+from vision_agents.core import Agent, User
+from vision_agents.plugins import getstream, gemini, deepgram, elevenlabs
+
+# Configure OpenTelemetry
+PROMETHEUS_PORT = 9464
+reader = PrometheusMetricReader()
+provider = MeterProvider(metric_readers=[reader])
+metrics.set_meter_provider(provider)
+
+# Start Prometheus HTTP server
+start_http_server(PROMETHEUS_PORT)
+
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+handler = logging.StreamHandler(sys.stderr)
+logger.addHandler(handler)
+
+async def create_agent(**kwargs) -> Agent:
+    llm = gemini.LLM("gemini-2.5-flash-lite")
+    
+    agent = Agent(
+        edge=getstream.Edge(),
+        agent_user=User(name="Metrics Demo Agent", id="agent"),
+        instructions="You're a helpful assistant.",
+        llm=llm,
+        tts=elevenlabs.TTS(),
+        stt=deepgram.STT(eager_turn_detection=True),
+    )
+    
+    return agent
+
+async def join_call(agent: Agent, call_type: str, call_id: str, **kwargs) -> None:
+    logger.info("=" * 60)
+    logger.info("Prometheus Metrics Agent")
+    logger.info("=" * 60)
+    logger.info(f"Metrics endpoint: http://localhost:{PROMETHEUS_PORT}/metrics")
+    logger.info("")
+    logger.info("Metrics being collected:")
+    logger.info("  - llm_latency_ms, llm_time_to_first_token_ms")
+    logger.info("  - llm_tokens_input, llm_tokens_output")
+    logger.info("  - stt_latency_ms, tts_latency_ms")
+    logger.info("=" * 60)
+    
+    call = await agent.create_call(call_type, call_id)
+    
+    async with agent.join(call):
+        await agent.simple_response(
+            "Hello! I'm demonstrating metrics collection. Ask me anything!"
+        )
+        await agent.finish()
+
+if __name__ == "__main__":
+    from vision_agents.core import AgentLauncher, Runner
+    Runner(AgentLauncher(create_agent=create_agent, join_call=join_call)).cli()
+```
+
+Run the example:
+
+```bash
+uv run python prometheus_example.py run --call-type default --call-id test
+```
+
+View metrics at `http://localhost:9464/metrics`.
+
+## Distributed Tracing
+
+Enable tracing with Jaeger or other OTLP-compatible backends:
+
+<Steps>
+  <Step title="Install Dependencies">
+    ```bash
+    uv add opentelemetry-sdk opentelemetry-exporter-otlp-proto-grpc
+    ```
+  </Step>
+  
+  <Step title="Configure Tracing">
+    ```python
+    from opentelemetry import trace
+    from opentelemetry.sdk.resources import Resource
+    from opentelemetry.sdk.trace import TracerProvider
+    from opentelemetry.sdk.trace.export import BatchSpanProcessor
+    from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
+    
+    resource = Resource.create({"service.name": "vision-agents"})
+    tp = TracerProvider(resource=resource)
+    exporter = OTLPSpanExporter(endpoint="localhost:4317", insecure=True)
+    
+    tp.add_span_processor(BatchSpanProcessor(exporter))
+    trace.set_tracer_provider(tp)
+    ```
+  </Step>
+  
+  <Step title="Run Jaeger">
+    ```bash
+    docker run --rm -it \
+      -e COLLECTOR_OTLP_ENABLED=true \
+      -p 16686:16686 -p 4317:4317 -p 4318:4318 \
+      jaegertracing/all-in-one:1.51
+    ```
+  </Step>
+  
+  <Step title="View Traces">
+    Open `http://localhost:16686` to see traces in Jaeger UI.
+  </Step>
+</Steps>
+
+## Custom Metrics
+
+Add custom metrics for your application:
+
+```python
+from opentelemetry import metrics
+
+meter = metrics.get_meter("my_application")
+
+# Create custom metrics
+custom_counter = meter.create_counter(
+    "custom.events",
+    description="Custom events counter"
+)
+
+custom_histogram = meter.create_histogram(
+    "custom.latency.ms",
+    unit="ms",
+    description="Custom operation latency"
+)
+
+# Record metrics
+custom_counter.add(1, {"event_type": "user_action"})
+custom_histogram.record(123.45, {"operation": "process_frame"})
+```
+
+## Agent-Level Metrics
+
+Access built-in agent metrics directly:
+
+```python
+agent = Agent(...)
+
+# Agent exposes simple metrics
+print(f"LLM latency avg: {agent.metrics.llm_latency_ms__avg.value}ms")
+print(f"Total tokens: {agent.metrics.llm_input_tokens__total.value}")
+print(f"Tool calls: {agent.metrics.llm_tool_calls__total.value}")
+```
+
+Available agent metrics:
+
+```python
+agent.metrics.llm_latency_ms__avg
+agent.metrics.llm_time_to_first_token_ms__avg
+agent.metrics.llm_input_tokens__total
+agent.metrics.llm_output_tokens__total
+agent.metrics.llm_tool_calls__total
+agent.metrics.llm_tool_latency_ms__avg
+
+agent.metrics.stt_latency_ms__avg
+agent.metrics.stt_audio_duration_ms__total
+
+agent.metrics.tts_latency_ms__avg
+agent.metrics.tts_audio_duration_ms__total
+agent.metrics.tts_characters__total
+
+agent.metrics.turn_duration_ms__avg
+agent.metrics.turn_trailing_silence_ms__avg
+
+agent.metrics.video_frames_processed__total
+agent.metrics.video_processing_latency_ms__avg
+
+agent.metrics.vlm_inferences__total
+agent.metrics.vlm_inference_latency_ms__avg
+```
+
+## Grafana Dashboard
+
+Create a Grafana dashboard for visualization:
+
+1. Add Prometheus data source pointing to `http://localhost:9464`
+2. Create panels for key metrics:
+
+```promql
+# LLM latency over time
+rate(llm_latency_ms_sum[5m]) / rate(llm_latency_ms_count[5m])
+
+# Token usage
+rate(llm_tokens_input[5m])
+rate(llm_tokens_output[5m])
+
+# Error rates
+rate(llm_errors[5m])
+rate(stt_errors[5m])
+rate(tts_errors[5m])
+
+# Video processing
+rate(video_frames_processed[5m])
+```
+
+## Performance Profiling
+
+Use the built-in profiler for detailed performance analysis:
+
+```python
+from vision_agents.core.profiling import Profiler
+
+agent = Agent(
+    ...
+    profiler=Profiler(output_path='./profile.html'),
+)
+
+# Profiling starts automatically
+# When agent finishes, profile is saved to profile.html
+```
+
+The profiler:
+- Starts when agent is created
+- Stops when `AgentFinishEvent` is emitted
+- Generates an HTML report with timeline visualization
+- Shows function calls and time spent
+
+Open `profile.html` in a browser to analyze performance.
+
+## Production Monitoring
+
+<Steps>
+  <Step title="Export to Cloud">
+    Configure exporters for your cloud provider:
+    
+    <CodeGroup>
+    ```python Google Cloud
+    from opentelemetry.exporter.cloud_monitoring import CloudMonitoringMetricsExporter
+    
+    exporter = CloudMonitoringMetricsExporter()
+    provider = MeterProvider(metric_readers=[MetricReader(exporter)])
+    ```
+    
+    ```python AWS CloudWatch
+    from opentelemetry.exporter.cloudwatch import CloudWatchMetricsExporter
+    
+    exporter = CloudWatchMetricsExporter()
+    provider = MeterProvider(metric_readers=[MetricReader(exporter)])
+    ```
+    
+    ```python Datadog
+    from opentelemetry.exporter.datadog import DatadogExporter
+    
+    exporter = DatadogExporter()
+    provider = MeterProvider(metric_readers=[MetricReader(exporter)])
+    ```
+    </CodeGroup>
+  </Step>
+  
+  <Step title="Set Up Alerts">
+    Create alerts for critical metrics:
+    - High LLM latency (> 2s)
+    - High error rates (> 1%)
+    - Low response rates
+    - Resource exhaustion
+  </Step>
+  
+  <Step title="Monitor Costs">
+    Track token usage to control costs:
+    ```promql
+    sum(rate(llm_tokens_input[1h])) * 3600 * 24  # Daily token usage
+    ```
+  </Step>
+</Steps>
+
+## Best Practices
+
+- **Always configure OpenTelemetry before creating agents**
+- **Use labels/attributes** to filter metrics by provider, model, etc.
+- **Set up alerts** for errors and latency spikes
+- **Monitor token usage** to control costs
+- **Use tracing** to debug complex flows
+- **Profile in development** to identify bottlenecks
+
+## Example: Metrics in Production
+
+```python
+import os
+from opentelemetry import metrics
+from opentelemetry.sdk.metrics import MeterProvider
+from opentelemetry.exporter.prometheus import PrometheusMetricReader
+from opentelemetry.sdk.resources import Resource
+from prometheus_client import start_http_server
+
+# Configure with resource attributes
+resource = Resource.create({
+    "service.name": "vision-agents",
+    "service.version": "1.0.0",
+    "deployment.environment": os.environ.get("ENVIRONMENT", "production"),
+})
+
+reader = PrometheusMetricReader()
+provider = MeterProvider(resource=resource, metric_readers=[reader])
+metrics.set_meter_provider(provider)
+
+# Start metrics server
+start_http_server(port=9464)
+
+# Now create your agent
+agent = Agent(...)
+```
+
+## Examples
+
+See `examples/06_prometheus_metrics_example/prometheus_metrics_example.py` for a complete working example.
+
+## Next Steps
+
+- Deploy agents: [Deployment](/guides/deployment)
+- Review metrics in `agents-core/vision_agents/core/observability/metrics.py`
+- Check event definitions in `agents-core/vision_agents/core/*/events.py`

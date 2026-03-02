@@ -1,0 +1,324 @@
+---
+title: Runner
+description: Run agents as console apps or HTTP servers
+---
+
+## Overview
+
+The `Runner` class provides multiple ways to run your agents:
+
+- **Console mode** (`.run()`): Run a single agent in the terminal
+- **HTTP server mode** (`.serve()`): Start a web server that spawns agents for calls
+- **CLI mode** (`.cli()`): Provide a command-line interface with both modes
+
+```python
+from vision_agents.core import AgentLauncher, Runner, ServeOptions
+
+launcher = AgentLauncher(
+    create_agent=create_agent,
+    join_call=join_call,
+)
+
+runner = Runner(
+    launcher=launcher,
+    serve_options=ServeOptions(),
+)
+
+if __name__ == "__main__":
+    runner.cli()
+```
+
+With the CLI, you can:
+
+```bash
+# Run a single agent in console
+python agent.py run --call-id my-call
+
+# Start HTTP server
+python agent.py serve --port 8000
+```
+
+## Constructor
+
+```python
+Runner(
+    launcher: AgentLauncher,
+    serve_options: Optional[ServeOptions] = None,
+)
+```
+
+### Parameters
+
+<ParamField path="launcher" type="AgentLauncher" required>
+  Instance of `AgentLauncher` that manages agent lifecycle.
+</ParamField>
+
+<ParamField path="serve_options" type="Optional[ServeOptions]" default="None">
+  Instance of `ServeOptions` to configure behavior in `serve` mode. If None, default options are used.
+</ParamField>
+
+## Properties
+
+### fast_api
+
+```python
+fast_api: FastAPI
+```
+
+<ResponseField name="fast_api" type="FastAPI">
+  The FastAPI application instance used for serving agents. Can be customized via `serve_options.fast_api`.
+</ResponseField>
+
+## Methods
+
+### run
+
+```python
+def run(
+    self,
+    call_type: str = "default",
+    call_id: Optional[str] = None,
+    debug: bool = False,
+    log_level: str = "INFO",
+    no_demo: bool = False,
+    video_track_override: Optional[str] = None,
+) -> None
+```
+
+Run the agent as a console app with the specified configuration.
+
+<ParamField path="call_type" type="str" default="default">
+  Call type for the video call.
+</ParamField>
+
+<ParamField path="call_id" type="Optional[str]" default="None">
+  Call ID for the video call (auto-generated if not provided).
+</ParamField>
+
+<ParamField path="debug" type="bool" default="False">
+  Enable debug mode.
+</ParamField>
+
+<ParamField path="log_level" type="str" default="INFO">
+  Set the logging level. Options: DEBUG, INFO, WARNING, ERROR, CRITICAL.
+</ParamField>
+
+<ParamField path="no_demo" type="bool" default="False">
+  Disable opening the demo UI.
+</ParamField>
+
+<ParamField path="video_track_override" type="Optional[str]" default="None">
+  Optional local video track override for debugging. This track will play instead of any incoming video track.
+</ParamField>
+
+**Example:**
+
+```python
+runner.run(
+    call_type="customer-support",
+    call_id="support-123",
+    log_level="DEBUG",
+)
+```
+
+### serve
+
+```python
+def serve(
+    self,
+    host: str = "127.0.0.1",
+    port: int = 8000,
+    agents_log_level: str = "INFO",
+    http_log_level: str = "INFO",
+    debug: bool = False,
+) -> None
+```
+
+Start the HTTP server that spawns agents to the calls.
+
+<ParamField path="host" type="str" default="127.0.0.1">
+  Host address to bind the server to.
+</ParamField>
+
+<ParamField path="port" type="int" default="8000">
+  Port number for the server.
+</ParamField>
+
+<ParamField path="agents_log_level" type="str" default="INFO">
+  Logging level for agent-related logs.
+</ParamField>
+
+<ParamField path="http_log_level" type="str" default="INFO">
+  Logging level for FastAPI and uvicorn logs.
+</ParamField>
+
+<ParamField path="debug" type="bool" default="False">
+  Enable asyncio debug mode.
+</ParamField>
+
+**Example:**
+
+```python
+runner.serve(
+    host="0.0.0.0",
+    port=8080,
+    agents_log_level="DEBUG",
+)
+```
+
+### cli
+
+```python
+def cli(self) -> None
+```
+
+Run the command-line interface with `run` and `serve` subcommands.
+
+**Example:**
+
+```python
+# agent.py
+if __name__ == "__main__":
+    runner.cli()
+```
+
+Then use from command line:
+
+```bash
+# Run command with options
+python agent.py run --call-type default --call-id test-123 --debug
+
+# Serve command with options
+python agent.py serve --host 0.0.0.0 --port 8080 --agents-log-level DEBUG
+```
+
+## HTTP Server Endpoints
+
+When using `.serve()`, the following REST endpoints are available:
+
+### POST /sessions
+
+Start a new agent session.
+
+**Request Body:**
+```json
+{
+  "call_id": "my-call-123",
+  "call_type": "default"
+}
+```
+
+**Response:**
+```json
+{
+  "session_id": "agent-abc-123",
+  "call_id": "my-call-123",
+  "started_at": "2026-03-02T10:30:00Z"
+}
+```
+
+### GET /sessions/{call_id}/{session_id}
+
+Get information about a session.
+
+**Response:**
+```json
+{
+  "session_id": "agent-abc-123",
+  "call_id": "my-call-123",
+  "started_at": "2026-03-02T10:30:00Z",
+  "status": "active"
+}
+```
+
+### DELETE /sessions/{call_id}/{session_id}
+
+Close a session.
+
+**Response:**
+```json
+{
+  "success": true
+}
+```
+
+### GET /health
+
+Health check endpoint.
+
+**Response:**
+```json
+{
+  "status": "healthy",
+  "warmed_up": true,
+  "running": true
+}
+```
+
+### GET /metrics
+
+Get launcher metrics.
+
+**Response:**
+```json
+{
+  "active_sessions": 3,
+  "total_sessions_started": 10,
+  "warmed_up": true,
+  "running": true
+}
+```
+
+## Complete Example
+
+```python
+from vision_agents.core import Agent, AgentLauncher, Runner, ServeOptions, User
+from vision_agents.edge import Edge
+from vision_agents.llm.gemini import Realtime
+
+def create_agent():
+    return Agent(
+        edge=Edge(),
+        agent_user=User(id="agent", name="AI Assistant"),
+        llm=Realtime(),
+        instructions="You are a helpful assistant.",
+    )
+
+async def join_call(agent, call_type, call_id):
+    call = await agent.create_call(call_type, call_id)
+    async with agent.join(call):
+        await agent.finish()
+
+launcher = AgentLauncher(
+    create_agent=create_agent,
+    join_call=join_call,
+    agent_idle_timeout=60.0,
+    max_concurrent_sessions=10,
+)
+
+runner = Runner(
+    launcher=launcher,
+    serve_options=ServeOptions(
+        cors_allow_origins={"*"},
+    ),
+)
+
+if __name__ == "__main__":
+    # Provides both 'run' and 'serve' commands
+    runner.cli()
+```
+
+Usage:
+
+```bash
+# Console mode
+python agent.py run --call-id my-test-call
+
+# Server mode
+python agent.py serve --host 0.0.0.0 --port 8000
+
+# Then from another terminal:
+curl -X POST http://localhost:8000/sessions \
+  -H "Content-Type: application/json" \
+  -d '{"call_id": "test-123", "call_type": "default"}'
+```

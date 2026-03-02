@@ -1,0 +1,265 @@
+---
+title: "LLM"
+description: "Core LLM base classes for text, audio, video, and multimodal models"
+---
+
+## Overview
+
+The LLM module provides abstract base classes for different types of language models in Vision Agents. These classes define the interface that all LLM implementations must follow.
+
+## Base Classes
+
+### LLM
+
+The base class for all language model implementations.
+
+**Location:** `vision_agents.core.llm.llm.LLM`
+
+```python
+from vision_agents.core.llm.llm import LLM
+
+class MyLLM(LLM):
+    async def simple_response(
+        self,
+        text: str,
+        processors: Optional[List[Processor]] = None,
+        participant: Optional[Participant] = None,
+    ) -> LLMResponseEvent[Any]:
+        # Implementation here
+        pass
+```
+
+#### Abstract Methods
+
+<ParamField path="simple_response" type="async method" required>
+  Generate a response from text input.
+  
+  **Parameters:**
+  - `text` (str): The input text to process
+  - `processors` (Optional[List[Processor]]): Optional list of processors to apply
+  - `participant` (Optional[Participant]): Optional participant information
+  
+  **Returns:** `LLMResponseEvent[Any]` - Response event containing the model's output
+</ParamField>
+
+#### Key Methods
+
+<ParamField path="register_function" type="method">
+  Decorator to register a function with the LLM's function registry.
+  
+  **Parameters:**
+  - `name` (Optional[str]): Custom name for the function. Defaults to function name.
+  - `description` (Optional[str]): Function description. Defaults to docstring.
+  
+  **Returns:** Decorator function
+  
+  **Example:**
+  ```python
+  @llm.register_function(name="get_weather", description="Get current weather")
+  async def get_weather(location: str) -> dict:
+      return {"temperature": 72, "condition": "sunny"}
+  ```
+</ParamField>
+
+<ParamField path="call_function" type="async method">
+  Call a registered function with the given arguments.
+  
+  **Parameters:**
+  - `name` (str): Name of the function to call
+  - `arguments` (Dict[str, Any]): Dictionary of arguments to pass
+  
+  **Returns:** Result of the function call
+</ParamField>
+
+<ParamField path="set_instructions" type="method">
+  Set instructions for the LLM.
+  
+  **Parameters:**
+  - `instructions` (Instructions | str): Instructions object or string
+</ParamField>
+
+#### Provider-Specific Methods (Override in Subclasses)
+
+<ParamField path="_convert_tools_to_provider_format" type="method">
+  Convert ToolSchema objects to provider-specific format.
+  
+  **Parameters:**
+  - `tools` (List[ToolSchema]): List of ToolSchema objects
+  
+  **Returns:** `List[Dict[str, Any]]` - Tools in provider-specific format
+</ParamField>
+
+<ParamField path="_extract_tool_calls_from_response" type="method">
+  Extract tool calls from provider-specific response.
+  
+  **Parameters:**
+  - `response` (Any): Provider-specific response object
+  
+  **Returns:** `List[NormalizedToolCallItem]` - Normalized tool call items
+</ParamField>
+
+<ParamField path="_create_tool_result_message" type="method">
+  Create tool result messages for the provider.
+  
+  **Parameters:**
+  - `tool_calls` (List[NormalizedToolCallItem]): List of executed tool calls
+  - `results` (List[Any]): List of results from function execution
+  
+  **Returns:** `List[Dict[str, Any]]` - Tool result messages in provider format
+</ParamField>
+
+---
+
+### AudioLLM
+
+Base class for LLMs capable of processing speech-to-speech audio. These models do not require separate TTS and STT services.
+
+**Location:** `vision_agents.core.llm.llm.AudioLLM`
+
+```python
+from vision_agents.core.llm.llm import AudioLLM
+
+class MyAudioLLM(AudioLLM):
+    async def simple_audio_response(
+        self,
+        pcm: PcmData,
+        participant: Optional[Participant] = None
+    ):
+        # Process audio and generate audio response
+        pass
+```
+
+#### Abstract Methods
+
+<ParamField path="simple_audio_response" type="async method" required>
+  Process PCM audio frames and generate a response.
+  
+  **Parameters:**
+  - `pcm` (PcmData): PCM audio frame to process (typically 48 kHz mono, 16-bit)
+  - `participant` (Optional[Participant]): Optional participant information
+  
+  The audio should be raw PCM matching the model's expected format.
+</ParamField>
+
+---
+
+### VideoLLM
+
+Base class for LLMs capable of processing video input.
+
+**Location:** `vision_agents.core.llm.llm.VideoLLM`
+
+```python
+from vision_agents.core.llm.llm import VideoLLM
+import aiortc
+
+class MyVideoLLM(VideoLLM):
+    async def watch_video_track(
+        self,
+        track: aiortc.mediastreams.MediaStreamTrack,
+        shared_forwarder: Optional[VideoForwarder] = None,
+    ) -> None:
+        # Start watching video track
+        pass
+    
+    async def stop_watching_video_track(self) -> None:
+        # Stop watching video track
+        pass
+```
+
+#### Abstract Methods
+
+<ParamField path="watch_video_track" type="async method" required>
+  Watch and forward video tracks.
+  
+  **Parameters:**
+  - `track` (aiortc.mediastreams.MediaStreamTrack): Video track to watch
+  - `shared_forwarder` (Optional[VideoForwarder]): Optional shared VideoForwarder instance to use instead of creating a new one. Allows multiple consumers to share the same video stream.
+</ParamField>
+
+<ParamField path="stop_watching_video_track" type="async method" required>
+  Stop watching the video track and clean up resources.
+</ParamField>
+
+---
+
+### OmniLLM
+
+Base class for LLMs capable of both video and speech-to-speech audio processing. Combines `AudioLLM` and `VideoLLM` capabilities.
+
+**Location:** `vision_agents.core.llm.llm.OmniLLM`
+
+```python
+from vision_agents.core.llm.llm import OmniLLM
+
+class MyOmniLLM(OmniLLM):
+    async def simple_audio_response(
+        self,
+        pcm: PcmData,
+        participant: Optional[Participant] = None
+    ):
+        # Process audio
+        pass
+    
+    async def watch_video_track(
+        self,
+        track: aiortc.mediastreams.MediaStreamTrack,
+        shared_forwarder: Optional[VideoForwarder] = None,
+    ) -> None:
+        # Watch video
+        pass
+    
+    async def stop_watching_video_track(self) -> None:
+        # Stop watching video
+        pass
+```
+
+#### Inherited Methods
+
+OmniLLM inherits all abstract methods from both `AudioLLM` and `VideoLLM`:
+
+- `simple_audio_response()` - from AudioLLM
+- `watch_video_track()` - from VideoLLM
+- `stop_watching_video_track()` - from VideoLLM
+
+---
+
+## Properties
+
+<ParamField path="agent" type="Optional[Agent]">
+  Reference to the agent using this LLM. Set automatically by the agent.
+</ParamField>
+
+<ParamField path="events" type="EventManager">
+  Event manager for emitting LLM events (tool calls, responses, etc.)
+</ParamField>
+
+<ParamField path="function_registry" type="FunctionRegistry">
+  Registry of functions available for tool calling.
+</ParamField>
+
+---
+
+## Tool Execution
+
+The base LLM class provides built-in support for concurrent tool execution with timeout and deduplication:
+
+```python
+# Tools are automatically executed with:
+# - Concurrency limit (default: 8)
+# - Timeout per tool (default: 30s)
+# - Automatic deduplication
+# - Event emission (ToolStartEvent, ToolEndEvent)
+```
+
+---
+
+## Events
+
+LLM implementations emit the following events:
+
+- `ToolStartEvent` - When a tool execution starts
+- `ToolEndEvent` - When a tool execution completes (success or failure)
+- `LLMResponseChunkEvent` - For streaming responses
+
+See [Events](/api/llm-events) for more details.

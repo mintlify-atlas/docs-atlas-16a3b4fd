@@ -1,0 +1,311 @@
+---
+title: "TTS"
+description: "Text-to-Speech interface for converting text to audio"
+---
+
+## Overview
+
+The `TTS` (Text-to-Speech) class is an abstract base class for implementing speech synthesis in Vision Agents. It handles text-to-audio conversion, audio resampling, event emission, and performance tracking.
+
+**Location:** `vision_agents.core.tts.tts.TTS`
+
+## Usage
+
+```python
+from vision_agents.core.tts.tts import TTS
+from getstream.video.rtc.track_util import PcmData, AudioFormat
+
+class MyTTS(TTS):
+    async def stream_audio(self, text: str, *args, **kwargs) -> PcmData:
+        # Call TTS service
+        audio_bytes = await self.tts_api.synthesize(text)
+        
+        # Return as PcmData
+        return PcmData.from_bytes(
+            audio_bytes,
+            sample_rate=24000,
+            channels=1,
+            format=AudioFormat.S16
+        )
+    
+    async def stop_audio(self) -> None:
+        # Stop any ongoing synthesis
+        await self.tts_api.cancel()
+```
+
+## Constructor
+
+```python
+def __init__(
+    self,
+    provider_name: Optional[str] = None,
+):
+```
+
+<ParamField path="provider_name" type="Optional[str]">
+  Name of the TTS provider (e.g., "openai", "elevenlabs", "cartesia"). If not provided, uses the class name.
+</ParamField>
+
+## Abstract Methods
+
+<ParamField path="stream_audio" type="async method" required>
+  Convert text to speech audio data.
+  
+  This method must be implemented by subclasses. It can return audio in several formats:
+  - Single `PcmData` object (entire audio)
+  - Iterator of `PcmData` objects (streaming)
+  - Async iterator of `PcmData` objects (async streaming)
+  
+  The base TTS class handles resampling to the desired format and emits appropriate events.
+  
+  **Parameters:**
+  - `text` (str): The text to convert to speech
+  - `*args`: Additional arguments
+  - `**kwargs`: Additional keyword arguments
+  
+  **Returns:** `PcmData | Iterator[PcmData] | AsyncIterator[PcmData]`
+  
+  **Example (single buffer):**
+  ```python
+  async def stream_audio(self, text: str, *_, **__) -> PcmData:
+      response = await self.client.audio.speech.create(
+          model="gpt-4o-mini-tts",
+          voice="alloy",
+          input=text,
+          response_format="pcm",
+      )
+      return PcmData.from_bytes(
+          response.content,
+          sample_rate=24000,
+          channels=1,
+          format=AudioFormat.S16
+      )
+  ```
+  
+  **Example (streaming):**
+  ```python
+  async def stream_audio(self, text: str, *_, **__):
+      async for chunk in self.client.synthesize_stream(text):
+          yield PcmData.from_bytes(
+              chunk,
+              sample_rate=22050,
+              channels=1,
+              format=AudioFormat.S16
+          )
+  ```
+</ParamField>
+
+<ParamField path="stop_audio" type="async method" required>
+  Stop audio synthesis and clear any queues.
+  
+  This method is called when:
+  - User interrupts the agent
+  - Turn detection indicates user started speaking
+  - Agent needs to stop talking
+  
+  Implementations should:
+  - Cancel ongoing synthesis requests
+  - Clear internal audio buffers
+  - Stop any playback tasks
+  
+  **Example:**
+  ```python
+  async def stop_audio(self) -> None:
+      if self.synthesis_task:
+          self.synthesis_task.cancel()
+      if self.audio_queue:
+          self.audio_queue.clear()
+  ```
+</ParamField>
+
+## Public Methods
+
+<ParamField path="send" type="async method">
+  Convert text to speech and emit audio events.
+  
+  This is the main method used by agents. It:
+  1. Calls `stream_audio()` to get audio
+  2. Resamples audio to the desired format
+  3. Emits `TTSAudioEvent` for each chunk
+  4. Tracks performance metrics
+  5. Emits `TTSSynthesisCompleteEvent` when done
+  
+  **Parameters:**
+  - `text` (str): The text to convert to speech
+  - `participant` (Optional[Participant]): Participant to associate with the audio
+  - `*args`: Additional arguments passed to `stream_audio()`
+  - `**kwargs`: Additional keyword arguments passed to `stream_audio()`
+  
+  **Example:**
+  ```python
+  # Agent calls send() to generate and emit audio
+  await tts.send(
+      text="Hello, how can I help you?",
+      participant=current_participant
+  )
+  ```
+</ParamField>
+
+<ParamField path="set_output_format" type="method">
+  Set the desired output audio format for emitted events.
+  
+  The agent should call this with its output track properties so the TTS can automatically resample audio.
+  
+  **Parameters:**
+  - `sample_rate` (int): Desired sample rate in Hz (e.g., 48000)
+  - `channels` (int): Desired channel count (1 for mono, 2 for stereo). Default: 1
+  - `audio_format` (AudioFormat): Desired audio format. Default: PCM_S16
+  
+  **Example:**
+  ```python
+  # Agent sets output format to match audio track
+  tts.set_output_format(
+      sample_rate=48000,
+      channels=1,
+      audio_format=AudioFormat.PCM_S16
+  )
+  ```
+</ParamField>
+
+<ParamField path="close" type="async method">
+  Close the TTS service and release resources.
+  
+  Override in subclasses to clean up connections, tasks, etc.
+</ParamField>
+
+## Properties
+
+<ParamField path="session_id" type="str">
+  Unique session identifier (UUID). Automatically generated.
+</ParamField>
+
+<ParamField path="provider_name" type="str">
+  Name of the TTS provider.
+</ParamField>
+
+<ParamField path="events" type="EventManager">
+  Event manager for emitting TTS events.
+</ParamField>
+
+## Internal Properties
+
+<ParamField path="_desired_sample_rate" type="int">
+  Target sample rate for output audio. Set via `set_output_format()`. Default: 16000
+</ParamField>
+
+<ParamField path="_desired_channels" type="int">
+  Target channel count for output audio. Set via `set_output_format()`. Default: 1
+</ParamField>
+
+<ParamField path="_desired_format" type="AudioFormat">
+  Target audio format for output audio. Set via `set_output_format()`. Default: PCM_S16
+</ParamField>
+
+## Plugin Example
+
+Here's how the OpenAI plugin implements the TTS interface:
+
+```python
+from vision_agents.core.tts.tts import TTS as BaseTTS
+from getstream.video.rtc.track_util import PcmData, AudioFormat
+from openai import AsyncOpenAI
+
+class TTS(BaseTTS):
+    """OpenAI Text-to-Speech implementation."""
+    
+    def __init__(
+        self,
+        *,
+        api_key: Optional[str] = None,
+        model: str = "gpt-4o-mini-tts",
+        voice: str = "alloy",
+        client: Optional[AsyncOpenAI] = None,
+    ) -> None:
+        super().__init__(provider_name="openai_tts")
+        
+        api_key = api_key or os.environ.get("OPENAI_API_KEY")
+        if not api_key:
+            raise ValueError("OPENAI_API_KEY not set")
+        
+        self.client = client or AsyncOpenAI(api_key=api_key)
+        self.model = model
+        self.voice = voice
+    
+    async def stream_audio(self, text: str, *_, **__) -> PcmData:
+        """Synthesize the entire speech to a single PCM buffer.
+        
+        Base TTS handles resampling and event emission.
+        """
+        resp = await self.client.audio.speech.create(
+            model=self.model,
+            voice=self.voice,
+            input=text,
+            response_format="pcm",
+        )
+        
+        return PcmData.from_bytes(
+            resp.content,
+            sample_rate=24_000,
+            channels=1,
+            format=AudioFormat.S16
+        )
+    
+    async def stop_audio(self) -> None:
+        # No internal playback queue; agent manages output track
+        return None
+```
+
+## Streaming Example
+
+For services that support streaming synthesis (like Cartesia or ElevenLabs):
+
+```python
+class StreamingTTS(BaseTTS):
+    async def stream_audio(self, text: str, *_, **__):
+        """Stream audio chunks as they're generated."""
+        async for chunk in self.client.synthesize_stream(
+            text=text,
+            voice_id=self.voice_id,
+            model_id=self.model_id,
+        ):
+            # Yield each chunk as PcmData
+            yield PcmData.from_bytes(
+                chunk.audio,
+                sample_rate=chunk.sample_rate,
+                channels=1,
+                format=AudioFormat.S16
+            )
+```
+
+## Audio Resampling
+
+The TTS base class automatically handles resampling:
+
+1. Your `stream_audio()` returns audio in the provider's native format
+2. The base class calls `set_output_format()` with the agent's requirements
+3. Each audio chunk is automatically resampled before emission
+
+This means you don't need to handle resampling in your implementation - just return the audio in whatever format your provider gives you.
+
+## Performance Metrics
+
+The TTS class automatically tracks and emits performance metrics:
+
+- **synthesis_time_ms**: Time taken to synthesize audio
+- **audio_duration_ms**: Duration of generated audio
+- **real_time_factor**: Ratio of synthesis time to audio duration
+- **chunk_count**: Number of audio chunks emitted
+- **total_audio_bytes**: Total bytes of audio generated
+
+These metrics are included in the `TTSSynthesisCompleteEvent`.
+
+## Events
+
+TTS implementations emit the following events:
+
+- `TTSSynthesisStartEvent` - When synthesis begins
+- `TTSAudioEvent` - For each audio chunk (automatically emitted by base class)
+- `TTSSynthesisCompleteEvent` - When synthesis completes with performance metrics
+- `TTSErrorEvent` - When errors occur during synthesis
+
+See [Events](/api/llm-events) for more details.

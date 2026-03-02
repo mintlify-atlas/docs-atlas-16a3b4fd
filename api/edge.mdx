@@ -1,0 +1,223 @@
+---
+title: EdgeTransport
+description: Abstract base class for real-time communication edge transports
+---
+
+## Overview
+
+`EdgeTransport` is the core abstraction for connecting agents to real-time communication sessions. It provides a vendor-agnostic interface for WebRTC-based calls, allowing you to integrate with different providers (like GetStream) while maintaining consistent agent behavior.
+
+```python
+from vision_agents.core.edge import EdgeTransport
+```
+
+## Implementation
+
+EdgeTransport is an abstract base class. Vision Agents provides the `StreamEdge` implementation for GetStream.io:
+
+```python
+from vision_agents.plugins.getstream import StreamEdge
+
+edge = StreamEdge()
+```
+
+## Properties
+
+<ParamField path="events" type="EventManager">
+  Event manager for subscribing to transport events. All EdgeTransport implementations automatically register these required events:
+  - `AudioReceivedEvent`: Audio data received from participants
+  - `TrackAddedEvent`: Media track added to the call
+  - `TrackRemovedEvent`: Media track removed from the call
+  - `CallEndedEvent`: Call session ended
+</ParamField>
+
+## Methods
+
+### authenticate()
+
+Authenticate an agent user with the transport.
+
+```python
+from vision_agents.core.edge.types import User
+
+await edge.authenticate(User(
+    id="agent-123",
+    name="Support Agent",
+    image="https://example.com/avatar.png"
+))
+```
+
+<ParamField path="user" type="User" required>
+  User object containing:
+  - `id`: Unique identifier for the agent
+  - `name`: Display name for the agent
+  - `image`: Optional avatar URL
+</ParamField>
+
+### create_call()
+
+Create a new call or retrieve an existing one.
+
+```python
+call = await edge.create_call(
+    call_id="support-session-456",
+    call_type="default"  # GetStream specific
+)
+```
+
+<ParamField path="call_id" type="str" required>
+  Unique identifier for the call session
+</ParamField>
+
+<ParamField path="**kwargs" type="dict">
+  Transport-specific configuration options. For `StreamEdge`:
+  - `call_type` (str): GetStream call type (default: "default")
+</ParamField>
+
+**Returns:** Call object implementing the [Call](/api/call) protocol
+
+### join()
+
+Join a call and establish a connection.
+
+```python
+connection = await edge.join(agent, call)
+await connection.wait_for_participant(timeout=30.0)
+```
+
+<ParamField path="agent" type="Agent" required>
+  The Agent instance joining the call
+</ParamField>
+
+<ParamField path="call" type="Call" required>
+  Call object from `create_call()`
+</ParamField>
+
+<ParamField path="**kwargs" type="dict">
+  Transport-specific join options
+</ParamField>
+
+**Returns:** [Connection](/api/connection) object for managing the session lifecycle
+
+### create_audio_track()
+
+Create an audio stream track for sending audio to the call.
+
+```python
+audio_track = edge.create_audio_track()
+```
+
+**Returns:** `AudioStreamTrack` for streaming PCM audio data
+
+### publish_tracks()
+
+Publish audio and/or video tracks to the active call.
+
+```python
+await edge.publish_tracks(
+    audio_track=audio_track,
+    video_track=None
+)
+```
+
+<ParamField path="audio_track" type="MediaStreamTrack | None">
+  Audio track to publish (from `create_audio_track()`)
+</ParamField>
+
+<ParamField path="video_track" type="MediaStreamTrack | None">
+  Video track to publish (optional)
+</ParamField>
+
+### send_custom_event()
+
+Send a custom event to all participants in the call.
+
+```python
+await edge.send_custom_event({
+    "type": "agent_status",
+    "status": "thinking"
+})
+```
+
+<ParamField path="data" type="dict" required>
+  JSON-serializable event payload (max 5KB for GetStream)
+</ParamField>
+
+### close()
+
+Close the transport and clean up all resources.
+
+```python
+await edge.close()
+```
+
+## Event Subscription
+
+Subscribe to transport events using the `events` manager:
+
+```python
+from vision_agents.core.edge.events import AudioReceivedEvent, TrackAddedEvent
+
+@edge.events.subscribe
+async def on_audio(event: AudioReceivedEvent):
+    print(f"Received audio from {event.participant.user_id}")
+    # Process PCM data: event.pcm_data
+
+@edge.events.subscribe
+async def on_track_added(event: TrackAddedEvent):
+    if event.track_type == TrackType.VIDEO:
+        print(f"Video track added: {event.track_id}")
+```
+
+## StreamEdge Implementation
+
+The `StreamEdge` class implements `EdgeTransport` using GetStream.io's infrastructure:
+
+```python
+from vision_agents.plugins.getstream import StreamEdge
+from vision_agents.core.edge.types import User
+
+# Initialize
+edge = StreamEdge()
+
+# Authenticate
+await edge.authenticate(User(id="agent-1", name="AI Agent"))
+
+# Create and join call
+call = await edge.create_call("my-call-id")
+connection = await edge.join(agent, call)
+
+# Publish audio
+audio_track = edge.create_audio_track()
+await edge.publish_tracks(audio_track=audio_track, video_track=None)
+
+# Wait for participants
+await connection.wait_for_participant(timeout=60.0)
+```
+
+### StreamEdge-Specific Methods
+
+<ParamField path="open_demo()" type="async method">
+  Open a browser demo interface for testing:
+  ```python
+  url = await edge.open_demo(call)
+  print(f"Demo URL: {url}")
+  ```
+</ParamField>
+
+<ParamField path="create_conversation()" type="async method">
+  Create a chat conversation channel linked to the call:
+  ```python
+  conversation = await edge.create_conversation(
+      call=call,
+      user=user,
+      instructions="You are a helpful assistant"
+  )
+  ```
+</ParamField>
+
+## See Also
+
+- [Connection](/api/connection) - Managing active call sessions
+- [Call](/api/call) - Call protocol interface
+- [TrackType](/api/connection#tracktype) - Media track types

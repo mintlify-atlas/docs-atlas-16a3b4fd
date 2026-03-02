@@ -1,0 +1,204 @@
+---
+title: "Welcome to Vision Agents"
+description: "Build real-time vision AI agents that watch, listen, and understand video"
+---
+
+## Build Real-Time Vision AI Agents
+
+Vision Agents gives you the building blocks to create intelligent, low-latency video experiences powered by your models, your infrastructure, and your use cases.
+
+### Multi-modal AI agents that watch, listen, and understand video
+
+Combine YOLO, Roboflow, and other vision models with Gemini, OpenAI, and Claude in real-time to build the next generation of AI applications.
+
+<CardGroup cols={2}>
+  <Card title="Quick Start" icon="rocket" href="/quickstart">
+    Get your first agent running in minutes with a complete example
+  </Card>
+  <Card title="Installation" icon="download" href="/installation">
+    Install Vision Agents with uv and optional plugin integrations
+  </Card>
+  <Card title="Voice Agents" icon="microphone" href="/guides/voice-agents">
+    Build conversational AI with speech-to-text and text-to-speech
+  </Card>
+  <Card title="Video Agents" icon="video" href="/guides/video-agents">
+    Create vision AI that processes and understands video in real-time
+  </Card>
+</CardGroup>
+
+## Key Highlights
+
+<CardGroup cols={2}>
+  <Card title="Video AI" icon="eye">
+    Built for real-time video AI. Combine YOLO, Roboflow, and others with Gemini/OpenAI in real-time.
+  </Card>
+  <Card title="Low Latency" icon="gauge-high">
+    Join quickly (500ms) and maintain audio/video latency under 30ms using Stream's edge network.
+  </Card>
+  <Card title="Open Platform" icon="code">
+    Built by Stream, but works with any video edge network.
+  </Card>
+  <Card title="Native APIs" icon="plug">
+    Native SDK methods from OpenAI, Gemini, and Claude — always access the latest LLM capabilities.
+  </Card>
+</CardGroup>
+
+## Core Features
+
+| Feature | Description |
+| --- | --- |
+| **True real-time via WebRTC** | Stream directly to model providers that support it for instant visual understanding |
+| **Interval/processor pipeline** | For providers without WebRTC, process frames with pluggable video processors (e.g., YOLO, Roboflow, or custom PyTorch/ONNX) before/after model calls |
+| **Turn detection & diarization** | Keep conversations natural; know when the agent should speak or stay quiet and who's talking |
+| **Voice activity detection (VAD)** | Trigger actions intelligently and use resources efficiently |
+| **Speech↔Text↔Speech** | Enable low-latency loops for smooth, conversational voice UX |
+| **Tool/function calling** | Execute arbitrary code and APIs mid-conversation. Create Linear issues, query weather, trigger telephony, or hit internal services |
+| **Built-in memory via Stream Chat** | Agents recall context naturally across turns and sessions |
+| **Text back-channel** | Message the agent silently during a call |
+| **Phone and RAG** | Interact with the Agent via inbound or outbound phone calls using Twilio and Turbopuffer |
+
+## Quick Example
+
+Here's a simple voice AI agent that can have conversations and call functions:
+
+```python
+from vision_agents.core import Agent, User
+from vision_agents.plugins import getstream, gemini, elevenlabs, deepgram
+
+agent = Agent(
+    edge=getstream.Edge(),
+    agent_user=User(name="AI Assistant", id="agent"),
+    instructions="You're a helpful voice AI assistant. Keep responses short and conversational.",
+    llm=gemini.LLM(model="gemini-3-flash-preview"),
+    tts=elevenlabs.TTS(model_id="eleven_flash_v2_5"),
+    stt=deepgram.STT(eager_turn_detection=True),
+)
+```
+
+<Note>
+This example uses separate STT, LLM, and TTS components. You can simplify this by using realtime LLMs like `gemini.Realtime()` or `openai.Realtime()` that handle speech natively.
+</Note>
+
+## Use Cases
+
+Vision Agents is perfect for building:
+
+- **Sports Coaching** - Analyze golf swings, basketball shots, or yoga poses with YOLO and provide real-time feedback
+- **Security Systems** - Detect faces, track packages, and respond to theft with automated alerts
+- **Healthcare** - Monitor physical therapy sessions, track patient movements, or provide workout guidance
+- **Education** - Interactive tutoring with visual understanding and voice interaction
+- **Customer Support** - Video-enabled support agents that can see and help with user issues
+- **Gaming** - Just Dance-style games or interactive experiences with pose detection
+
+## Getting Started
+
+<Steps>
+  <Step title="Install Vision Agents">
+    Install the core package with uv:
+    ```bash
+    uv add vision-agents
+    ```
+  </Step>
+  <Step title="Add Integrations">
+    Install the plugins you need:
+    ```bash
+    uv add "vision-agents[getstream,openai,elevenlabs,deepgram]"
+    ```
+  </Step>
+  <Step title="Get API Keys">
+    Sign up for [Stream](https://getstream.io/) to get free API credentials. Developers receive **333,000 participant minutes** per month, plus extra credits via the Maker Program.
+  </Step>
+  <Step title="Build Your First Agent">
+    Follow the [quickstart guide](/quickstart) to create your first voice or video AI agent.
+  </Step>
+</Steps>
+
+## Available Integrations
+
+Vision Agents comes with 35+ out-of-the-box integrations:
+
+<AccordionGroup>
+  <Accordion title="LLM Providers">
+    - **OpenAI** - Realtime API with video support, LLMs, and TTS
+    - **Gemini** - Realtime API, Gemini Live, and VLM interface
+    - **Anthropic Claude** - Advanced reasoning with vision capabilities
+    - **AWS Bedrock** - Amazon Nova models with realtime speech-to-speech
+    - **Qwen** - Alibaba's Qwen3 with native audio output
+    - **xAI Grok** - Advanced reasoning and real-time knowledge
+    - **OpenRouter** - Access multiple providers through unified API
+    - **Hugging Face** - Open-source models via Cerebras, Together, Groq
+  </Accordion>
+  
+  <Accordion title="Speech-to-Text">
+    - **Deepgram** - Fast, accurate transcription with speaker diarization
+    - **Fast-Whisper** - OpenAI's Whisper with CTranslate2 acceleration
+    - **Fish Audio** - Automatic language detection
+    - **Wizper** - Real-time translation with Whisper v3
+    - **Mistral Voxtral** - Real-time transcription with diarization
+  </Accordion>
+  
+  <Accordion title="Text-to-Speech">
+    - **ElevenLabs** - Highly realistic and expressive voices
+    - **Cartesia** - Realistic voice synthesis for real-time apps
+    - **AWS Polly** - Natural-sounding voices with neural engine
+    - **Fish Audio** - Voice cloning capabilities
+    - **Inworld** - High-quality streaming voices
+    - **Kokoro** - Local TTS for offline synthesis
+  </Accordion>
+  
+  <Accordion title="Vision & Video Processing">
+    - **Ultralytics YOLO** - Real-time pose and object detection
+    - **Roboflow** - Object detection with hosted API or local models
+    - **Moondream** - Lightweight VLM for detection, caption, and VQA
+    - **NVIDIA Cosmos 2** - Video understanding with frame buffering
+    - **Decart** - Real-time video transformation and styling
+  </Accordion>
+  
+  <Accordion title="Specialized Services">
+    - **HeyGen** - Real-time interactive avatars
+    - **Twilio** - Voice call integration with Media Streams
+    - **TurboPuffer** - RAG with hybrid search (vector + BM25)
+    - **Smart Turn** - Advanced turn detection with Silero VAD
+    - **Vogent** - Neural turn detection for conversations
+  </Accordion>
+</AccordionGroup>
+
+<Note>
+Explore all integrations in the [Integrations](/integrations/overview) section.
+</Note>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Quickstart Tutorial" icon="play" href="/quickstart">
+    Build your first agent in 5 minutes
+  </Card>
+  <Card title="Core Concepts" icon="book" href="/concepts/agents">
+    Understand agents, processors, and the architecture
+  </Card>
+  <Card title="Browse Examples" icon="code" href="/examples/simple-agent">
+    Explore real-world examples and use cases
+  </Card>
+  <Card title="API Reference" icon="terminal" href="/api/agent">
+    Dive into the complete API documentation
+  </Card>
+</CardGroup>
+
+## Community & Support
+
+Join our community to get help, share ideas, and stay updated:
+
+- **Discord** - [Join the conversation](https://discord.gg/RkhX9PxMS6)
+- **GitHub** - [Star the repo](https://github.com/GetStream/Vision-Agents) and contribute
+- **Documentation** - Browse guides and tutorials at [visionagents.ai](https://visionagents.ai)
+
+<Warning>
+**Vision AI Limitations**
+
+Video AI is at the frontier of AI. Keep these limitations in mind:
+- Struggles with small text (e.g., reading game scores)
+- Can lose context with longer videos (30+ seconds)
+- Most applications need a combination of specialized models (YOLO, Roboflow) + larger models (Gemini, OpenAI)
+- Image size & FPS must stay relatively low for performance
+- Video doesn't trigger responses in realtime models - you need audio/text input
+</Warning>

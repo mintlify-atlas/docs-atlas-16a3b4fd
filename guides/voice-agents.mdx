@@ -1,0 +1,267 @@
+---
+title: Building Voice Agents
+description: Create real-time voice AI agents with STT, LLM, and TTS
+---
+
+Voice agents combine Speech-to-Text (STT), Large Language Models (LLM), and Text-to-Speech (TTS) to create natural conversational experiences.
+
+## Basic Voice Agent
+
+Here's a complete example of a voice agent optimized for fast response times:
+
+```python
+from vision_agents.core import Agent, User
+from vision_agents.plugins import deepgram, elevenlabs, gemini, getstream
+
+agent = Agent(
+    edge=getstream.Edge(),
+    agent_user=User(name="My AI Assistant", id="agent"),
+    instructions="You're a voice AI assistant. Keep responses short and conversational.",
+    llm=gemini.LLM("gemini-2.5-flash-lite"),
+    tts=elevenlabs.TTS(model_id="eleven_flash_v2_5"),
+    stt=deepgram.STT(eager_turn_detection=True),
+)
+```
+
+## Component Selection
+
+### Speech-to-Text (STT)
+
+Choose your STT provider based on latency and accuracy needs:
+
+<CodeGroup>
+```python Deepgram (Recommended)
+stt = deepgram.STT(
+    eager_turn_detection=True  # Lower latency, higher token usage
+)
+```
+
+```python Assembly AI
+from vision_agents.plugins import assemblyai
+
+stt = assemblyai.STT(
+    model="best",  # or "nano" for faster processing
+)
+```
+</CodeGroup>
+
+<Tip>
+**Eager turn detection** reduces latency by detecting turns faster, but increases STT token usage. Recommended for conversational agents.
+</Tip>
+
+### Large Language Model (LLM)
+
+Select an LLM optimized for speed:
+
+<CodeGroup>
+```python Gemini Flash
+llm = gemini.LLM("gemini-2.5-flash-lite")
+```
+
+```python OpenAI GPT-4o Mini
+from vision_agents.plugins import openai
+
+llm = openai.LLM(model="gpt-4o-mini")
+```
+
+```python Anthropic Claude
+from vision_agents.plugins import anthropic
+
+llm = anthropic.LLM(model="claude-3-5-haiku-20241022")
+```
+</CodeGroup>
+
+### Text-to-Speech (TTS)
+
+Choose TTS for natural voice output:
+
+<CodeGroup>
+```python ElevenLabs
+tts = elevenlabs.TTS(
+    voice_id="FGY2WhTYpPnrIDTdsKH5",
+    model_id="eleven_flash_v2_5"  # Fast, low-latency
+)
+```
+
+```python Cartesia
+from vision_agents.plugins import cartesia
+
+tts = cartesia.TTS(
+    voice_id="a0e99841-438c-4a64-b679-ae501e7d6091",
+    model_id="sonic-english"  # Ultra-low latency
+)
+```
+
+```python OpenAI
+from vision_agents.plugins import openai
+
+tts = openai.TTS(
+    voice="alloy",
+    model="tts-1"  # or "tts-1-hd" for higher quality
+)
+```
+</CodeGroup>
+
+## Function Calling
+
+Add tools for the agent to use:
+
+```python
+from typing import Dict, Any
+
+llm = gemini.LLM("gemini-2.5-flash-lite")
+
+@llm.register_function(description="Get current weather for a location")
+async def get_weather(location: str) -> Dict[str, Any]:
+    # Your weather API logic here
+    return {
+        "location": location,
+        "temperature": 72,
+        "condition": "sunny"
+    }
+
+agent = Agent(
+    edge=getstream.Edge(),
+    agent_user=User(name="Weather Assistant", id="agent"),
+    instructions="Help users check weather. Always use the get_weather function.",
+    llm=llm,
+    tts=elevenlabs.TTS(),
+    stt=deepgram.STT(eager_turn_detection=True),
+)
+```
+
+## Phone Integration
+
+Build voice agents that answer phone calls via Twilio:
+
+```python
+from fastapi import FastAPI, WebSocket
+from vision_agents.plugins import twilio
+
+app = FastAPI()
+call_registry = twilio.TwilioCallRegistry()
+
+@app.post("/twilio/voice")
+async def twilio_voice_webhook(
+    data: twilio.CallWebhookInput = Depends(twilio.CallWebhookInput.as_form),
+):
+    call_id = str(uuid.uuid4())
+    
+    async def prepare_call():
+        agent = await create_agent()
+        phone_user = User(
+            name=f"Call from {data.from_number}",
+            id=f"phone-{data.from_number}"
+        )
+        stream_call = await agent.create_call("default", call_id=call_id)
+        return agent, phone_user, stream_call
+    
+    twilio_call = call_registry.create(call_id, data, prepare=prepare_call)
+    url = f"wss://{NGROK_URL}/twilio/media/{call_id}/{twilio_call.token}"
+    return twilio.create_media_stream_response(url)
+
+@app.websocket("/twilio/media/{call_id}/{token}")
+async def media_stream(websocket: WebSocket, call_id: str, token: str):
+    twilio_call = call_registry.validate(call_id, token)
+    twilio_stream = twilio.TwilioMediaStream(websocket)
+    await twilio_stream.accept()
+    
+    agent, phone_user, stream_call = await twilio_call.await_prepare()
+    await twilio.attach_phone_to_call(stream_call, twilio_stream, phone_user.id)
+    
+    async with agent.join(stream_call, participant_wait_timeout=0):
+        await agent.llm.simple_response(
+            "Greet the caller warmly and ask how you can help."
+        )
+        await twilio_stream.run()
+```
+
+<Note>
+Twilio uses mulaw audio encoding at 8kHz. The framework handles conversion automatically.
+</Note>
+
+## Joining a Call
+
+Create and join a call with your agent:
+
+```python
+async def join_call(agent: Agent, call_type: str, call_id: str) -> None:
+    call = await agent.create_call(call_type, call_id)
+    
+    async with agent.join(call):
+        # Start the conversation
+        await agent.simple_response(
+            "Hello! How can I help you today?"
+        )
+        
+        # Run until the call ends
+        await agent.finish()
+```
+
+## Turn Detection
+
+Control when the agent detects the user has finished speaking:
+
+<CodeGroup>
+```python Deepgram Built-in
+stt = deepgram.STT(
+    eager_turn_detection=True  # Uses Deepgram's turn detection
+)
+```
+
+```python Vogent Turn Detection
+from vision_agents.plugins import vogent
+
+agent = Agent(
+    stt=deepgram.STT(eager_turn_detection=False),
+    turn_detection=vogent.TurnDetection(
+        min_silence_ms=500,  # Minimum silence to detect turn end
+        prefix_padding_ms=300,
+    ),
+    ...
+)
+```
+</CodeGroup>
+
+## Production Best Practices
+
+<Steps>
+  <Step title="Optimize for Latency">
+    - Use `eager_turn_detection=True` for STT
+    - Choose fast models: `gemini-2.5-flash-lite`, `gpt-4o-mini`
+    - Select low-latency TTS: ElevenLabs Flash, Cartesia Sonic
+    - Deploy edge nodes close to users
+  </Step>
+  
+  <Step title="Handle Interruptions">
+    ```python
+    # The framework handles barge-in automatically
+    # Audio queues are flushed on interruption
+    ```
+  </Step>
+  
+  <Step title="Error Handling">
+    ```python
+    @agent.llm.events.subscribe
+    async def on_llm_error(event: LLMErrorEvent):
+        logger.error(f"LLM error: {event.error}")
+        await agent.simple_response(
+            "I'm having trouble right now. Could you repeat that?"
+        )
+    ```
+  </Step>
+  
+  <Step title="Monitor Performance">
+    See [Observability](/guides/observability) for metrics collection.
+  </Step>
+</Steps>
+
+## Complete Example
+
+See `examples/01_simple_agent_example/simple_agent_example.py` in the source code for a complete working example.
+
+## Next Steps
+
+- Add video capabilities: [Video Agents](/guides/video-agents)
+- Integrate knowledge bases: [RAG Integration](/guides/rag-integration)
+- Deploy to production: [Deployment](/guides/deployment)

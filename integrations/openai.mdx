@@ -1,0 +1,222 @@
+---
+title: "OpenAI"
+description: "OpenAI integration for GPT models with chat, vision, and realtime capabilities"
+---
+
+The OpenAI plugin provides access to GPT models including GPT-4, GPT-4.1, and realtime models for voice interactions.
+
+## Installation
+
+```bash
+uv add vision-agents[openai]
+```
+
+## Authentication
+
+Set your API key in the environment:
+
+```bash
+export OPENAI_API_KEY=your_openai_api_key
+```
+
+## Components
+
+### LLM - Text Generation (Responses API)
+
+Use OpenAI's modern Responses API for GPT-4.1 and newer models:
+
+```python
+from vision_agents.plugins import openai, deepgram, cartesia, getstream, smart_turn
+from vision_agents.core import Agent, User
+
+llm = openai.LLM(model="gpt-4.1")
+
+agent = Agent(
+    edge=getstream.Edge(),
+    agent_user=User(name="AI Assistant"),
+    instructions="Be helpful and concise.",
+    llm=llm,
+    tts=cartesia.TTS(),
+    stt=deepgram.STT(),
+    turn_detection=smart_turn.TurnDetection()
+)
+```
+
+<ParamField path="model" type="string" required>
+  The OpenAI model to use (e.g., `gpt-4.1`, `gpt-4`, `gpt-4-turbo`)
+</ParamField>
+
+<ParamField path="api_key" type="string">
+  Optional API key. Defaults to `OPENAI_API_KEY` environment variable
+</ParamField>
+
+<ParamField path="base_url" type="string">
+  Optional base URL for API endpoint
+</ParamField>
+
+<ParamField path="max_tool_rounds" type="int" default="3">
+  Maximum number of function calling rounds
+</ParamField>
+
+### Realtime - Speech-to-Speech
+
+Use OpenAI's realtime API for direct audio-to-audio interactions:
+
+```python
+from vision_agents.plugins import openai, getstream
+from vision_agents.core import Agent, User
+
+realtime = openai.Realtime()
+
+agent = Agent(
+    edge=getstream.Edge(),
+    agent_user=User(name="Voice Assistant"),
+    instructions="Speak naturally and be friendly.",
+    llm=realtime
+)
+```
+
+<Note>
+Realtime mode handles audio processing directly - no separate TTS/STT needed.
+</Note>
+
+### TTS - Text-to-Speech
+
+Use OpenAI's TTS for voice synthesis:
+
+```python
+from vision_agents.plugins import openai
+
+tts = openai.TTS()
+
+agent = Agent(
+    llm=your_llm,
+    tts=tts,
+    # ... other config
+)
+```
+
+## Chat Completions Models
+
+For compatibility with vLLM, TGI, Ollama, or legacy Chat Completions API:
+
+### ChatCompletionsLLM
+
+For text-only models:
+
+```python
+from vision_agents.plugins import openai
+
+llm = openai.ChatCompletionsLLM(
+    model="gpt-4",
+    base_url="https://api.openai.com/v1",
+    api_key="your_key"
+)
+```
+
+### ChatCompletionsVLM
+
+For vision models (including third-party like Qwen):
+
+```python
+from vision_agents.plugins import openai, deepgram, elevenlabs, getstream, vogent
+from vision_agents.core import Agent, User
+
+llm = openai.ChatCompletionsVLM(
+    model="qwen3vl",
+    base_url="https://model-xyz.api.baseten.co/production/predict",
+    api_key="your_baseten_key"
+)
+
+agent = Agent(
+    edge=getstream.Edge(),
+    agent_user=User(name="Video Assistant"),
+    instructions="Analyze video frames and answer questions.",
+    llm=llm,
+    stt=deepgram.STT(),
+    tts=elevenlabs.TTS(),
+    turn_detection=vogent.TurnDetection()
+)
+```
+
+<ParamField path="model" type="string" required>
+  Model identifier
+</ParamField>
+
+<ParamField path="base_url" type="string">
+  API endpoint URL for third-party providers
+</ParamField>
+
+<ParamField path="api_key" type="string">
+  API key for authentication
+</ParamField>
+
+## Function Calling
+
+Register custom functions for the model to invoke:
+
+```python
+from vision_agents.plugins import openai
+
+llm = openai.LLM("gpt-4.1")
+# Or use openai.Realtime() for realtime model
+
+@llm.register_function(
+    name="get_weather",
+    description="Get the current weather for a given city"
+)
+def get_weather(city: str) -> dict:
+    """Get weather information for a city."""
+    return {
+        "city": city,
+        "temperature": 72,
+        "condition": "Sunny"
+    }
+```
+
+The function will be automatically called when the model decides to use it.
+
+## Configuration Examples
+
+### With Turn Detection
+
+```python
+from vision_agents.plugins import openai, smart_turn
+
+agent = Agent(
+    llm=openai.LLM("gpt-4.1"),
+    turn_detection=smart_turn.TurnDetection(
+        buffer_duration=2.0,
+        confidence_threshold=0.5
+    ),
+    # ... other config
+)
+```
+
+### With Multiple Modalities
+
+```python
+from vision_agents.plugins import openai, deepgram, elevenlabs
+
+agent = Agent(
+    llm=openai.LLM("gpt-4.1"),
+    stt=deepgram.STT(model="flux-general-en"),
+    tts=elevenlabs.TTS(),
+    # ... other config
+)
+```
+
+## Environment Variables
+
+```bash
+OPENAI_API_KEY=your_openai_api_key_here
+OPENAI_MODEL=model_to_use
+OPENAI_REALTIME_MODEL=gpt-4o-realtime-preview
+```
+
+## References
+
+- [OpenAI API Documentation](https://platform.openai.com/docs/api-reference)
+- [Responses API](https://platform.openai.com/docs/api-reference/responses)
+- [Chat Completions API](https://platform.openai.com/docs/api-reference/chat)
+- Plugin Source: `plugins/openai/vision_agents/plugins/openai/__init__.py`

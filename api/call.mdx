@@ -1,0 +1,133 @@
+---
+title: Call
+description: Protocol interface for call/room sessions
+---
+
+## Overview
+
+`Call` is a protocol interface that represents a call or room session. Any EdgeTransport implementation must return objects conforming to this protocol from their `create_call()` method.
+
+```python
+from vision_agents.core.edge import Call
+```
+
+## Protocol Definition
+
+`Call` is defined as a Python `Protocol`, meaning any object with an `id` property satisfies the interface:
+
+```python
+from typing import Protocol
+
+class Call(Protocol):
+    @property
+    def id(self) -> str:
+        """The unique identifier of the call."""
+        ...
+```
+
+## Properties
+
+<ParamField path="id" type="str" required>
+  The unique identifier of the call session. This ID is used to:
+  - Reference the call across the transport layer
+  - Create shareable join links
+  - Associate chat channels and other resources
+</ParamField>
+
+## Usage
+
+You don't instantiate `Call` directly. Instead, you receive Call objects from your EdgeTransport implementation:
+
+```python
+from vision_agents.plugins.getstream import StreamEdge
+from vision_agents.core.edge.types import User
+
+edge = StreamEdge()
+await edge.authenticate(User(id="agent-1", name="AI Agent"))
+
+# create_call returns an object implementing the Call protocol
+call = await edge.create_call("support-session-123")
+
+print(f"Call ID: {call.id}")  # "support-session-123"
+```
+
+## GetStream Implementation
+
+When using `StreamEdge`, the Call object is GetStream's `StreamCall` class, which provides additional methods:
+
+```python
+call = await edge.create_call("my-call-id")
+
+# Access underlying GetStream functionality
+call.id  # Required by Call protocol
+
+# GetStream-specific features (if needed)
+# call.client  # Access to GetStream client
+# await call.update(...)  # Update call settings
+```
+
+## Type Checking
+
+The Call protocol enables type-safe code without coupling to specific implementations:
+
+```python
+from vision_agents.core.edge import Call
+
+def log_call_info(call: Call) -> None:
+    print(f"Processing call: {call.id}")
+
+# Works with any EdgeTransport implementation
+log_call_info(call)  # Type checker validates call.id exists
+```
+
+## Creating Custom Implementations
+
+To create a custom Call implementation, simply provide an `id` property:
+
+```python
+from dataclasses import dataclass
+
+@dataclass
+class MyCustomCall:
+    id: str
+    # Add any additional fields your transport needs
+    session_token: str
+    region: str
+
+# This satisfies the Call protocol
+call = MyCustomCall(
+    id="call-123",
+    session_token="token-xyz",
+    region="us-east-1"
+)
+```
+
+## Integration with Agent
+
+Calls are typically created and joined as part of agent initialization:
+
+```python
+from vision_agents.core import Agent
+from vision_agents.plugins.getstream import StreamEdge
+
+# Create agent with StreamEdge transport
+agent = Agent(
+    edge=StreamEdge(),
+    # ... other config
+)
+
+# Create and join call
+call = await agent.edge.create_call("customer-support-1")
+connection = await agent.edge.join(agent, call)
+
+try:
+    await connection.wait_for_participant(timeout=60.0)
+    # Agent is now connected to the call
+finally:
+    await connection.close()
+```
+
+## See Also
+
+- [EdgeTransport](/api/edge) - Creating and managing calls
+- [Connection](/api/connection) - Active call session management

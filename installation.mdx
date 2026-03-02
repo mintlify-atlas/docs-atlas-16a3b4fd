@@ -1,0 +1,564 @@
+---
+title: "Installation"
+description: "Install Vision Agents and configure your development environment"
+---
+
+## Requirements
+
+Before installing Vision Agents, ensure you have:
+
+- **Python 3.10 or higher** (Python 3.12 recommended)
+- **uv** package manager installed
+
+<Note>
+Vision Agents uses **uv** for fast, reliable dependency management. If you don't have uv installed, follow the [uv installation guide](https://docs.astral.sh/uv/).
+</Note>
+
+## Install uv
+
+If you haven't installed uv yet, install it with:
+
+<CodeGroup>
+
+```bash macOS/Linux
+curl -LsSf https://astral.sh/uv/install.sh | sh
+```
+
+```bash Windows
+powershell -c "irm https://astral.sh/uv/install.ps1 | iex"
+```
+
+```bash Homebrew
+brew install uv
+```
+
+```bash pip
+pip install uv
+```
+
+</CodeGroup>
+
+Verify the installation:
+
+```bash
+uv --version
+```
+
+## Installation Methods
+
+### Basic Installation
+
+Install the core Vision Agents package:
+
+```bash
+uv add vision-agents
+```
+
+This installs the base framework without any plugin integrations. You'll need to install plugins separately based on your needs.
+
+### Install with Plugins
+
+Most applications need at least a few plugins. Install Vision Agents with the integrations you'll use:
+
+<CodeGroup>
+
+```bash Voice Agent Stack
+# Recommended for voice AI agents
+uv add "vision-agents[getstream,gemini,elevenlabs,deepgram]"
+```
+
+```bash Video Agent Stack
+# Recommended for video AI agents
+uv add "vision-agents[getstream,gemini,ultralytics]"
+```
+
+```bash OpenAI Stack
+# Using OpenAI Realtime API
+uv add "vision-agents[getstream,openai]"
+```
+
+```bash Full Stack
+# Install all available plugins
+uv add "vision-agents[all-plugins]"
+```
+
+</CodeGroup>
+
+<Warning>
+**Performance Note**: Installing `all-plugins` downloads many dependencies and can take several minutes. Only install the plugins you actually need for faster installation and smaller project size.
+</Warning>
+
+## Available Plugin Extras
+
+Vision Agents supports 35+ integrations via optional plugin extras:
+
+### LLM Providers
+
+Install language model providers:
+
+<CodeGroup>
+
+```bash OpenAI
+uv add "vision-agents[openai]"
+```
+
+```bash Gemini
+uv add "vision-agents[gemini]"
+```
+
+```bash Anthropic Claude
+uv add "vision-agents[anthropic]"
+```
+
+```bash AWS Bedrock
+uv add "vision-agents[aws]"
+```
+
+```bash xAI Grok
+uv add "vision-agents[xai]"
+```
+
+```bash OpenRouter
+uv add "vision-agents[openrouter]"
+```
+
+```bash Hugging Face
+uv add "vision-agents[huggingface]"
+```
+
+```bash Qwen
+uv add "vision-agents[qwen]"
+```
+
+```bash Mistral
+uv add "vision-agents[mistral]"
+```
+
+</CodeGroup>
+
+### Speech-to-Text (STT)
+
+Install speech recognition providers:
+
+<CodeGroup>
+
+```bash Deepgram
+uv add "vision-agents[deepgram]"
+```
+
+```bash Fast-Whisper
+uv add "vision-agents[fast-whisper]"
+```
+
+```bash Fish Audio
+uv add "vision-agents[fish]"
+```
+
+```bash Wizper
+uv add "vision-agents[wizper]"
+```
+
+</CodeGroup>
+
+### Text-to-Speech (TTS)
+
+Install voice synthesis providers:
+
+<CodeGroup>
+
+```bash ElevenLabs
+uv add "vision-agents[elevenlabs]"
+```
+
+```bash Cartesia
+uv add "vision-agents[cartesia]"
+```
+
+```bash AWS Polly
+uv add "vision-agents[aws]"
+```
+
+```bash Kokoro (Local)
+uv add "vision-agents[kokoro]"
+```
+
+```bash Inworld
+uv add "vision-agents[inworld]"
+```
+
+```bash Pocket
+uv add "vision-agents[pocket]"
+```
+
+</CodeGroup>
+
+### Vision & Video Processing
+
+Install computer vision and video processing tools:
+
+<CodeGroup>
+
+```bash Ultralytics YOLO
+uv add "vision-agents[ultralytics]"
+```
+
+```bash Roboflow
+uv add "vision-agents[roboflow]"
+```
+
+```bash Moondream
+uv add "vision-agents[moondream]"
+```
+
+```bash NVIDIA Cosmos
+uv add "vision-agents[nvidia]"
+```
+
+```bash Decart
+uv add "vision-agents[decart]"
+```
+
+</CodeGroup>
+
+### Edge Networks
+
+Install video/audio edge network providers:
+
+```bash Stream
+uv add "vision-agents[getstream]"
+```
+
+<Note>
+[Stream](https://getstream.io/) provides ultra-low-latency WebRTC infrastructure with SDKs for React, iOS, Android, Flutter, React Native, and Unity. Free tier includes 333,000 participant minutes per month.
+</Note>
+
+### Specialized Services
+
+Install additional capabilities:
+
+<CodeGroup>
+
+```bash Turn Detection
+# Advanced turn detection
+uv add "vision-agents[smart-turn]"
+
+# Neural turn detection
+uv add "vision-agents[vogent]"
+```
+
+```bash Avatars
+# HeyGen interactive avatars
+uv add "vision-agents[heygen]"
+```
+
+```bash Phone Integration
+# Twilio voice calls
+uv add "vision-agents[twilio]"
+```
+
+```bash RAG
+# TurboPuffer for retrieval
+uv add "vision-agents[turbopuffer]"
+```
+
+```bash Caching
+# Redis for session storage
+uv add "vision-agents[redis]"
+```
+
+</CodeGroup>
+
+## Combining Multiple Plugins
+
+Install multiple plugins at once by listing them in brackets:
+
+```bash
+uv add "vision-agents[getstream,openai,gemini,ultralytics,roboflow,deepgram,elevenlabs]"
+```
+
+## Environment Setup
+
+### API Keys
+
+Vision Agents uses environment variables for API credentials. Create a `.env` file in your project root:
+
+```bash .env
+# Stream (Edge Network)
+STREAM_API_KEY=your_stream_api_key
+STREAM_API_SECRET=your_stream_api_secret
+
+# LLM Providers
+GEMINI_API_KEY=your_gemini_api_key
+OPENAI_API_KEY=your_openai_api_key
+ANTHROPIC_API_KEY=your_anthropic_api_key
+
+# Speech Services
+DEEPGRAM_API_KEY=your_deepgram_api_key
+ELEVENLABS_API_KEY=your_elevenlabs_api_key
+
+# Vision Services (optional)
+ROBOFLOW_API_KEY=your_roboflow_api_key
+```
+
+<Note>
+Vision Agents automatically loads `.env` files using `python-dotenv`. Make sure to add `.env` to your `.gitignore` to avoid committing secrets.
+</Note>
+
+### Getting API Keys
+
+Here's where to get credentials for popular services:
+
+| Service | Free Tier | Get API Key |
+| --- | --- | --- |
+| **Stream** | 333,000 minutes/month | [getstream.io](https://getstream.io/) |
+| **Gemini** | Generous free tier | [ai.google.dev](https://ai.google.dev/) |
+| **OpenAI** | Pay-as-you-go | [platform.openai.com](https://platform.openai.com/) |
+| **Deepgram** | $200 free credits | [deepgram.com](https://deepgram.com/) |
+| **ElevenLabs** | 10,000 chars/month | [elevenlabs.io](https://elevenlabs.io/) |
+| **Roboflow** | Free tier available | [roboflow.com](https://roboflow.com/) |
+| **Anthropic** | Pay-as-you-go | [console.anthropic.com](https://console.anthropic.com/) |
+
+## Verify Installation
+
+Verify your installation by running a simple test:
+
+```python test_install.py
+from vision_agents.core import Agent, User
+from vision_agents.plugins import getstream, gemini
+
+print("Vision Agents installed successfully!")
+print(f"Agent class: {Agent}")
+print(f"Stream Edge: {getstream.Edge}")
+print(f"Gemini LLM: {gemini.LLM}")
+```
+
+Run the test:
+
+```bash
+uv run python test_install.py
+```
+
+You should see output confirming the imports:
+
+```
+Vision Agents installed successfully!
+Agent class: <class 'vision_agents.core.agents.agents.Agent'>
+Stream Edge: <class 'vision_agents.plugins.getstream.edge.Edge'>
+Gemini LLM: <class 'vision_agents.plugins.gemini.llm.LLM'>
+```
+
+## Project Structure
+
+Here's a recommended project structure for Vision Agents applications:
+
+```
+my-vision-agent/
+├── .env                 # API keys (DO NOT COMMIT)
+├── .gitignore          # Git ignore file
+├── pyproject.toml      # Project dependencies
+├── my_agent.py         # Main agent code
+├── instructions.md     # Agent instructions
+└── processors/         # Custom processors
+    └── __init__.py
+```
+
+### Initialize a New Project
+
+Create a new Vision Agents project:
+
+<Steps>
+  <Step title="Create Project Directory">
+    ```bash
+    mkdir my-vision-agent
+    cd my-vision-agent
+    ```
+  </Step>
+
+  <Step title="Initialize uv Project">
+    ```bash
+    uv init
+    ```
+  </Step>
+
+  <Step title="Install Dependencies">
+    ```bash
+    uv add "vision-agents[getstream,gemini,elevenlabs,deepgram]"
+    ```
+  </Step>
+
+  <Step title="Create .env File">
+    ```bash
+    touch .env
+    # Add your API keys to .env
+    ```
+  </Step>
+
+  <Step title="Add to .gitignore">
+    ```bash .gitignore
+    .env
+    __pycache__/
+    *.pyc
+    .pytest_cache/
+    ```
+  </Step>
+</Steps>
+
+## Development Installation
+
+To contribute to Vision Agents or run examples from the repository:
+
+<Steps>
+  <Step title="Clone the Repository">
+    ```bash
+    git clone https://github.com/GetStream/Vision-Agents.git
+    cd Vision-Agents
+    ```
+  </Step>
+
+  <Step title="Install Development Dependencies">
+    ```bash
+    uv sync --all-extras --dev
+    ```
+
+    This installs:
+    - All plugin extras
+    - Development tools (ruff, mypy, pytest)
+    - Pre-commit hooks
+  </Step>
+
+  <Step title="Run Tests">
+    Verify your development setup:
+    ```bash
+    uv run pytest -m "not integration"
+    ```
+  </Step>
+</Steps>
+
+<Note>
+See [DEVELOPMENT.md](https://github.com/GetStream/Vision-Agents/blob/main/DEVELOPMENT.md) in the repository for detailed contribution guidelines.
+</Note>
+
+## Updating Vision Agents
+
+Keep Vision Agents up to date:
+
+```bash
+# Update to latest version
+uv sync --upgrade-package vision-agents
+
+# Update all dependencies
+uv sync --upgrade
+```
+
+Check your installed version:
+
+```bash
+uv run python -c "import vision_agents; print(vision_agents.__version__)"
+```
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Installation fails with dependency conflicts">
+    **Solution:**
+    
+    Vision Agents uses `numpy<2.0` due to compatibility requirements. If you see numpy conflicts:
+    
+    ```bash
+    # Clear uv cache and reinstall
+    uv cache clean
+    uv sync --reinstall
+    ```
+  </Accordion>
+
+  <Accordion title="Import errors after installation">
+    **Check:**
+    
+    1. Verify the plugin is installed:
+       ```bash
+       uv pip list | grep vision-agents
+       ```
+    
+    2. Install missing plugins:
+       ```bash
+       uv add "vision-agents[plugin-name]"
+       ```
+    
+    3. Restart your Python interpreter
+  </Accordion>
+
+  <Accordion title="uv command not found">
+    **Solution:**
+    
+    If `uv` isn't in your PATH after installation:
+    
+    1. Restart your terminal
+    2. Or manually add to PATH:
+       ```bash
+       export PATH="$HOME/.cargo/bin:$PATH"
+       ```
+    
+    3. Verify:
+       ```bash
+       which uv
+       ```
+  </Accordion>
+
+  <Accordion title="GPU acceleration for YOLO/vision models">
+    **For CUDA GPU Support:**
+    
+    Install PyTorch with CUDA support before Vision Agents:
+    
+    ```bash
+    # CUDA 11.8
+    uv pip install torch torchvision --index-url https://download.pytorch.org/whl/cu118
+    
+    # Then install Vision Agents
+    uv add "vision-agents[ultralytics]"
+    ```
+    
+    **For Apple Silicon (MPS):**
+    
+    PyTorch with MPS support is included by default on macOS.
+  </Accordion>
+
+  <Accordion title="Environment variables not loading">
+    **Check:**
+    
+    1. `.env` file is in your project root
+    2. You're calling `load_dotenv()` in your code:
+       ```python
+       from dotenv import load_dotenv
+       load_dotenv()  # Load .env file
+       ```
+    
+    3. Variable names match exactly (case-sensitive)
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+Now that you have Vision Agents installed:
+
+<CardGroup cols={2}>
+  <Card title="Quickstart Guide" icon="rocket" href="/quickstart">
+    Build your first agent in 5 minutes
+  </Card>
+  <Card title="Core Concepts" icon="book" href="/concepts/agents">
+    Learn about agents, processors, and architecture
+  </Card>
+  <Card title="Browse Examples" icon="code" href="/examples/simple-agent">
+    Explore real-world examples and use cases
+  </Card>
+  <Card title="Integration Guides" icon="plug" href="/integrations/overview">
+    Configure LLMs, STT, TTS, and vision models
+  </Card>
+</CardGroup>
+
+## Getting Help
+
+Need help with installation?
+
+- **Discord** - [Join our community](https://discord.gg/RkhX9PxMS6)
+- **GitHub Issues** - [Report installation problems](https://github.com/GetStream/Vision-Agents/issues)
+- **Documentation** - [Browse all guides](https://visionagents.ai)

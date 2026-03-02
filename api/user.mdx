@@ -1,0 +1,151 @@
+---
+title: User
+description: Represents a user identity in Vision Agents
+---
+
+## Overview
+
+The `User` class represents a user's identity in Vision Agents. It's used to identify both human participants and AI agents in calls.
+
+```python
+from vision_agents.core import User
+
+# Create a user for the AI agent
+agent_user = User(
+    id="agent-123",
+    name="Customer Support Bot",
+    image="https://example.com/avatar.png",
+)
+```
+
+## Constructor
+
+```python
+User(
+    id: Optional[str] = "",
+    name: Optional[str] = "",
+    image: Optional[str] = "",
+)
+```
+
+### Parameters
+
+<ParamField path="id" type="Optional[str]" default="''">
+  Unique identifier for the user. For agents, this is typically auto-generated if not provided.
+</ParamField>
+
+<ParamField path="name" type="Optional[str]" default="''">
+  Display name for the user.
+</ParamField>
+
+<ParamField path="image" type="Optional[str]" default="''">
+  URL to the user's avatar/profile image.
+</ParamField>
+
+## Usage Examples
+
+### Creating an Agent User
+
+```python
+from vision_agents.core import Agent, User
+from vision_agents.edge import Edge
+from vision_agents.llm.gemini import Realtime
+
+agent_user = User(
+    id="support-agent",
+    name="Customer Support",
+    image="https://example.com/support-avatar.png",
+)
+
+agent = Agent(
+    edge=Edge(),
+    agent_user=agent_user,
+    llm=Realtime(),
+    instructions="You are a helpful customer support agent.",
+)
+```
+
+### Auto-Generated ID
+
+If you don't provide an ID, the Agent will auto-generate one:
+
+```python
+# ID will be auto-generated as "agent-{uuid}"
+agent_user = User(
+    name="AI Assistant",
+    image="https://example.com/ai-avatar.png",
+)
+
+agent = Agent(
+    edge=Edge(),
+    agent_user=agent_user,
+    llm=Realtime(),
+)
+
+# After initialization, agent_user.id will be populated
+print(agent_user.id)  # e.g., "agent-abc123-def456-..."
+```
+
+### Minimal User
+
+```python
+# Simplest form - all fields will use defaults
+agent_user = User()
+
+agent = Agent(
+    edge=Edge(),
+    agent_user=agent_user,
+    llm=Realtime(),
+)
+```
+
+## Related Types
+
+### Participant
+
+While `User` represents identity, `Participant` represents an active participant in a call:
+
+```python
+@dataclass
+class Participant:
+    original: Any  # Original participant object from the connectivity provider
+    user_id: str   # User ID (doesn't have to be unique)
+    id: str        # Unique participant ID during the call
+```
+
+Key differences:
+- A `User` can have multiple `Participant` instances across different calls
+- `Participant.user_id` maps to `User.id`
+- `Participant.id` is unique per call session
+
+## Best Practices
+
+<Tip>
+Provide meaningful names and images for your agent users. These are often displayed in UI and help users understand who they're interacting with.
+</Tip>
+
+<Warning>
+If you're managing multiple agents, ensure each has a unique `id` to avoid conflicts in logging and metrics.
+</Warning>
+
+### Example: Multiple Agents with Different Roles
+
+```python
+# Sales agent
+sales_agent_user = User(
+    id="sales-agent",
+    name="Sales Assistant",
+    image="https://example.com/sales-avatar.png",
+)
+
+# Support agent
+support_agent_user = User(
+    id="support-agent",
+    name="Technical Support",
+    image="https://example.com/support-avatar.png",
+)
+
+# Create agents with different users
+sales_agent = Agent(edge=edge, agent_user=sales_agent_user, llm=llm1, ...)
+support_agent = Agent(edge=edge, agent_user=support_agent_user, llm=llm2, ...)
+```
